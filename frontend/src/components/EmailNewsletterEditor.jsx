@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import EditorSidebar from "./EditorSidebar";
 import EditorCanvas from "./EditorCanvas";
-import { MousePointer, Eye, Save, Send, Download, Share2 } from "lucide-react";
+import { MousePointer, Eye, Save, Send, Download, Share2, Edit2 } from "lucide-react";
 import domToImage from "dom-to-image-more";
 import jsPDF from "jspdf";
 import { exportToEmailHtml } from "./ExportToEmailHtml";
@@ -373,40 +373,44 @@ export default function EmailNewsletterEditor() {
   // ============================================================================
   // THUMBNAIL GENERATION
   // ============================================================================
-  const generateThumbnail = async () => {
-    try {
-      await ensureFontsLoaded();
-      const node = prepareForExport();
-      if (!node) return "";
-      
-      Object.assign(node.style, {
-        position: "absolute",
-        left: "-9999px",
-        top: "0",
-        zIndex: "-1",
-      });
-      document.body.appendChild(node);
-      await new Promise((r) => setTimeout(r, 800));
-      
-      const width = Math.min(320, parseInt(globalSettings.maxWidth || 600, 10));
-      const scale = width / (parseInt(globalSettings.maxWidth || 600, 10) || 600);
-      
-      const dataUrl = await domToImage.toPng(node, {
-        quality: 0.8,
-        bgcolor: globalSettings.newsletterColor || "#ffffff",
-        width: parseInt(globalSettings.maxWidth || 600, 10),
-        height: node.scrollHeight,
-        style: { transform: `scale(${scale})`, transformOrigin: "top left" },
-        filter: (el) => !el?.dataset?.noExport,
-      });
-      
-      document.body.removeChild(node);
-      return dataUrl;
-    } catch (error) {
-      console.error("Error generating thumbnail:", error);
-      return "";
-    }
-  };
+ const generateThumbnail = async () => {
+  try {
+    await ensureFontsLoaded();
+    const node = prepareForExport();
+    if (!node) return "";
+
+    Object.assign(node.style, {
+      position: "absolute",
+      left: "-9999px",
+      top: "0",
+      zIndex: "-1",
+    });
+    document.body.appendChild(node);
+    await new Promise((r) => setTimeout(r, 800));
+
+    const captureWidth = 600;   // ✅ Only first 300px width
+    const captureHeight = 1000;  // ✅ Only first 300px height
+
+    const dataUrl = await domToImage.toPng(node, {
+      quality: 0.9,
+      bgcolor: globalSettings.newsletterColor || "#ffffff",
+      width: captureWidth,
+      height: captureHeight,
+      style: {
+        clip: `rect(0px, ${captureWidth}px, ${captureHeight}px, 0px)`,
+        overflow: 'hidden',
+      },
+      filter: (el) => !el?.dataset?.noExport,
+    });
+
+    document.body.removeChild(node);
+    return dataUrl;
+  } catch (error) {
+    console.error("Error generating thumbnail:", error);
+    return "";
+  }
+};
+
 
   // ============================================================================
   // TEMPLATE DATA UPLOAD TO CLOUDINARY (for share feature)
@@ -1727,116 +1731,145 @@ export default function EmailNewsletterEditor() {
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-white via-gray-50 to-white border-b-2 border-gray-300 px-6 py-4 flex items-center justify-between shadow-lg">
-        {/* Newsletter Name Input */}
-        <div className="flex-1 max-w-md relative group">
-          <input
-            type="text"
-            value={newsletterName}
-            onChange={(e) => setNewsletterName(e.target.value)}
-            className="text-xl font-bold bg-transparent border-none focus:outline-none text-gray-800 placeholder-gray-400 w-full pr-12 transition-all duration-300"
-            placeholder="Untitled Newsletter"
-          />
-          <div className="h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 w-0 group-focus-within:w-full transition-all duration-500 absolute bottom-0 left-0 rounded-full"></div>
-
-          <button
-            onClick={() =>
-              document
-                .querySelector('input[placeholder="Untitled Newsletter"]')
-                .focus()
-            }
-            className="absolute right-0 top-1/2 transform -translate-y-1/2 p-2 text-gray-400 hover:text-blue-500 transition-all duration-200 opacity-0 group-hover:opacity-100 hover:scale-110 rounded-full hover:bg-blue-50"
-            aria-label="Edit Newsletter Name"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path d="M17.414 2.586a2 2 0 010 2.828l-9.9 9.9a1 1 0 01-.464.263l-4 1a1 1 0 01-1.213-1.213l1-4a1 1 0 01.263-.464l9.9-9.9a2 2 0 012.828 0zM15.121 4.05L14 2.93l-1.414 1.414 1.121 1.121 1.414-1.414zM13.707 5.464L12.586 4.343 3.414 13.515l-.707 2.828 2.828-.707 9.172-9.172z" />
-            </svg>
-          </button>
+<div className="px-6 py-8 bg-white flex items-center justify-between shadow-lg">
+        {/* Logo and Company Name */}
+          <div className="flex items-center gap-3 mr-8 ">
+          <div className="relative group/logo cursor-pointer">
+            {/* <div className="absolute inset-0 bg-gradient-to-r from-[#f51398] to-[#2001fd] rounded-xl blur-md opacity-60 group-hover/logo:opacity-90 transition-opacity duration-300"></div> */}
+            <div className="relative bg-gradient-to-br from-[#fbd3ec] to-[#dcd2ff] rounded-xl p-2.5 shadow-lg transform group-hover/logo:scale-110 transition-all duration-300 border border-[#f3c7ff]">
+              <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="url(#logo-gradient)" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <defs>
+                  <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#f51398" />
+                    <stop offset="50%" stopColor="#c40cd8" />
+                    <stop offset="100%" stopColor="#2001fd" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+          </div>
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-black bg-gradient-to-r from-[#f51398] via-[#c40cd8] to-[#2001fd] bg-clip-text text-transparent tracking-tight leading-none">
+              EMAIL<span className="text-[#2001fd] ml-2">Newsletter</span>
+            </h1>
+            <p className="text-x font-semibold bg-gradient-to-r from-[#ff22aa] to-[#2100ff] bg-clip-text text-transparent tracking-wider">EDITOR</p>
+          </div>
         </div>
+        {/* Newsletter Name Input */}
+      {activeView === "editor" && (
+  <div className="flex-1 max-w-md relative group ml-20 flex items-center gap-3">
+    <button
+      onClick={() =>
+        document
+          .querySelector('input[placeholder="Untitled Newsletter"]')
+          .focus()
+      }
+      className="p-2 text-gray-400 hover:text-blue-500 transition-all duration-200 hover:scale-110 rounded-full hover:bg-blue-50"
+      aria-label="Edit Newsletter Name"
+    >
+      <Edit2 className="w-5 h-5" />
+    </button>
+
+    <input
+      type="text"
+      value={newsletterName}
+      onChange={(e) => setNewsletterName(e.target.value)}
+      className="text-xl font-bold bg-transparent border-none focus:outline-none text-gray-800 placeholder-gray-400 w-full transition-all duration-300"
+      placeholder="Untitled Newsletter"
+    />
+  </div>
+)}
 
         {/* Navigation */}
-        <div className="flex items-center gap-4">
-          <header className="bg-gradient-to-r from-blue-50 to-indigo-50 shadow-md rounded-xl p-3 border border-blue-100">
-            <nav className="flex items-center gap-3">
-              <Link
-                to="/templates"
-                className="px-4 py-2.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                  />
-                </svg>
-                Templates
-              </Link>
-              <Link
-                to="/saved"
-                className="px-4 py-2.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-                  />
-                </svg>
-                Saved Templates
-              </Link>
-            </nav>
-          </header>
+       <div
+  className="flex items-center gap-4"
+  style={{
+    marginLeft: activeView === "preview" ? "30px" : "0px"
+  }}
+>
+  <header className="">
+    <nav className="flex items-center gap-3">
 
-          {/* Save/Update Template Button */}
-          <button
-            onClick={saveOrUpdateTemplate}
-            disabled={isSaving}
-            className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${
-              isSaving
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : currentTemplateId
-                ? "bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white hover:from-amber-600 hover:via-amber-700 hover:to-orange-700 shadow-lg hover:shadow-xl transform hover:scale-105 ring-2 ring-amber-200 hover:ring-amber-300"
-                : "bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 text-white hover:from-indigo-600 hover:via-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transform hover:scale-105 ring-2 ring-indigo-200 hover:ring-indigo-300"
-            }`}
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-              />
-            </svg>
-            {isSaving 
-              ? "Saving..." 
-              : currentTemplateId 
-              ? "Update Template" 
-              : "Save Template"
-            }
-          </button>
-        </div>
+      {/* Templates Button */}
+      <Link
+        to="/templates"
+        className="px-8 py-3.5 rounded-2xl text-sm font-semibold 
+        text-white bg-gradient-to-r from-[#f51398] via-[#c40cd8] to-[#2001fd]
+        hover:from-[#d70f84] hover:via-[#ab0fc4] hover:to-[#2400db]
+        transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-2xl
+        transform hover:-translate-y-0.5 hover:scale-105 ring-2 ring-pink-200 hover:ring-blue-300"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+          />
+        </svg>
+        Templates
+      </Link>
+
+      {/* Saved Button */}
+      <Link
+        to="/saved"
+        className="px-8 py-3.5 rounded-2xl text-sm font-semibold 
+        text-white bg-gradient-to-r from-[#ff22aa] via-[#d602ff] to-[#2100ff]
+        hover:from-[#e01c9a] hover:via-[#b100e6] hover:to-[#1c00d4]
+        transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-2xl
+        transform hover:-translate-y-0.5 hover:scale-105 ring-2 ring-pink-200 hover:ring-purple-300"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+          />
+        </svg>
+        Saved Templates
+      </Link>
+
+    </nav>
+  </header>
+
+  {/* Save/Update Template Button */}
+  <button
+    onClick={saveOrUpdateTemplate}
+    disabled={isSaving}
+    className={`
+      relative px-8 py-3.5 rounded-2xl mr-57 mx-5 text-sm font-bold
+      transition-all duration-300 flex items-center gap-3
+      overflow-hidden group
+      ${isSaving
+        ? "bg-gradient-to-r from-gray-400 to-gray-500 text-white cursor-not-allowed"
+        : currentTemplateId
+        ? "bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white hover:shadow-[0_0_30px_rgba(20,184,166,0.6)] hover:scale-105 active:scale-95"
+        : "bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white hover:shadow-[0_0_30px_rgba(20,184,166,0.6)] hover:scale-105 active:scale-95"
+      }
+    `}
+  >
+    <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
+    <svg className="w-5 h-5 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2.5}
+        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+      />
+    </svg>
+    <span className="relative z-10">
+      {isSaving
+        ? "Saving..."
+        : currentTemplateId
+        ? "Update Template"
+        : "Save Template"
+      }
+    </span>
+  </button>
+
+</div>
 
         {/* Right Side Controls */}
         <div className="flex items-center gap-4">
@@ -1872,30 +1905,40 @@ export default function EmailNewsletterEditor() {
             <div className="flex items-center gap-3">
               {/* Export Buttons */}
               <div className="flex items-center bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-1.5 shadow-inner gap-1">
-                <button
+                {/* <button
                   onClick={downloadAsPdf}
                   disabled={isExportingPdf}
-                  className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${
-                    isExportingPdf
-                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                      : "bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 shadow-lg hover:shadow-xl transform hover:scale-105"
-                  }`}
+                  className={`
+                    relative px-6 py-3 rounded-xl text-sm font-bold
+                    transition-all duration-300 flex items-center gap-2.5
+                    overflow-hidden group
+                    ${isExportingPdf
+                      ? "bg-gray-400 text-white cursor-not-allowed"
+                      : "bg-gradient-to-br from-red-500 to-rose-600 text-white hover:shadow-[0_8px_30px_rgba(239,68,68,0.5)] hover:scale-105 active:scale-95 border-2 border-red-400/50"
+                    }
+                  `}
                 >
-                  <Download className="w-4 h-4" />
-                  {isExportingPdf ? "Exporting..." : "PDF"}
-                </button>
+                  <span className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></span>
+                  <Download className="w-4 h-4 relative z-10" />
+                  <span className="relative z-10">{isExportingPdf ? "Exporting..." : "PDF"}</span>
+                </button> */}
 
                 <button
                   onClick={downloadAsImage}
                   disabled={isExportingPng}
-                  className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${
-                    isExportingPng
-                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                      : "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 shadow-lg hover:shadow-xl transform hover:scale-105"
-                  }`}
+                  className={`
+                    relative px-6 py-3 rounded-xl text-sm font-bold
+                    transition-all duration-300 flex items-center gap-2.5
+                    overflow-hidden group
+                    ${isExportingPng
+                      ? "bg-gray-400 text-white cursor-not-allowed"
+                      : "bg-gradient-to-br from-emerald-500 to-green-600 text-white hover:shadow-[0_8px_30px_rgba(16,185,129,0.5)] hover:scale-105 active:scale-95 border-2 border-emerald-400/50"
+                    }
+                  `}
                 >
-                  <Download className="w-4 h-4" />
-                  {isExportingPng ? "Exporting..." : "PNG"}
+                  <span className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></span>
+                  <Download className="w-4 h-4 relative z-10" />
+                  <span className="relative z-10">{isExportingPng ? "Exporting..." : "PNG"}</span>
                 </button>
               </div>
 
@@ -1910,20 +1953,25 @@ export default function EmailNewsletterEditor() {
                   }
                 }}
                 disabled={isSharing}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${
-                  isSharing
-                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                    : "bg-gradient-to-r from-purple-500 via-purple-600 to-pink-500 text-white hover:from-purple-600 hover:via-purple-700 hover:to-pink-600 shadow-lg hover:shadow-xl transform hover:scale-110 ring-2 ring-purple-200 hover:ring-purple-300"
-                }`}
+                className={`
+                  relative px-8 py-3.5 rounded-2xl text-sm font-bold
+                  transition-all duration-300 flex items-center gap-3
+                  overflow-hidden group
+                  ${isSharing
+                    ? "bg-gradient-to-r from-gray-400 to-gray-500 text-white cursor-not-allowed"
+                    : "bg-gradient-to-r from-pink-500 via-rose-500 to-orange-500 text-white hover:shadow-[0_0_40px_rgba(244,63,94,0.7)] hover:scale-110 active:scale-95"
+                  }
+                `}
               >
-                <Share2 className="w-4 h-4" />
-                {isSharing ? "Sharing..." : "Share"}
+                <span className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0.3),transparent)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
+                <Share2 className="w-5 h-5 relative z-10 group-hover:rotate-12 transition-transform duration-300" />
+                <span className="relative z-10">{isSharing ? "Sharing..." : "Share"}</span>
               </button>
             </div>
           )}
 
-          {/* Export HTML Button */}
-          <button
+          {/* Export HTML Button - Commented Out */}
+          {/* <button
             onClick={async () => {
               setIsExportingHtml(true);
               try {
@@ -1939,14 +1987,19 @@ export default function EmailNewsletterEditor() {
               }
             }}
             disabled={isExportingHtml}
-            className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${
-              isExportingHtml
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-gradient-to-r from-yellow-400 via-yellow-500 to-orange-500 text-white hover:from-yellow-500 hover:via-yellow-600 hover:to-orange-600 shadow-lg hover:shadow-xl transform hover:scale-105 ring-2 ring-yellow-200 hover:ring-yellow-300"
-            }`}
+            className={`
+              relative px-8 py-3.5 rounded-2xl text-sm font-bold
+              transition-all duration-300 flex items-center gap-3
+              overflow-hidden group
+              ${isExportingHtml
+                ? "bg-gradient-to-r from-gray-400 to-gray-500 text-white cursor-not-allowed"
+                : "bg-gradient-to-r from-amber-500 via-yellow-500 to-orange-500 text-white hover:shadow-[0_0_35px_rgba(251,191,36,0.6)] hover:scale-105 active:scale-95"
+              }
+            `}
           >
+            <span className="absolute inset-0 bg-gradient-to-t from-white/0 via-white/10 to-white/0 translate-y-full group-hover:translate-y-0 transition-transform duration-500"></span>
             <svg
-              className="w-4 h-4"
+              className="w-5 h-5 relative z-10"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -1954,12 +2007,12 @@ export default function EmailNewsletterEditor() {
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
               />
             </svg>
-            {isExportingHtml ? "Exporting..." : "Export HTML"}
-          </button>
+            <span className="relative z-10">{isExportingHtml ? "Exporting..." : "Export HTML"}</span>
+          </button> */}
         </div>
       </div>
 

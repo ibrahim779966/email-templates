@@ -67,79 +67,65 @@ export default function EditorSidebar({
     }
   }, [selectedElement]);
 
-  // Element configurations with enhanced styling
-  const elementTypes = [
-    {
-      type: "shape",
-      label: "Shape Block",
-      icon: Square, // Import Square from lucide-react
-      description: "Rectangle or Circle shapes",
-      color:
-        "bg-gradient-to-br from-cyan-50 to-cyan-100 hover:from-cyan-100 hover:to-cyan-200 border-cyan-300",
-      iconColor: "text-cyan-700",
-      shadowColor: "shadow-cyan-100",
-    },
-    {
-      type: "text",
-      label: "Text Block",
-      icon: Type,
-      description: "Add editable text content",
-      color:
-        "bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border-blue-300",
-      iconColor: "text-blue-700",
-      shadowColor: "shadow-blue-100",
-    },
-    {
-      type: "header",
-      label: "Header Block",
-      icon: Type,
-      description: "Add prominent headings",
-      color:
-        "bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 border-purple-300",
-      iconColor: "text-purple-700",
-      shadowColor: "shadow-purple-100",
-    },
-    {
-      type: "image",
-      label: "Image Block",
-      icon: Image,
-      description: "Upload or link images",
-      color:
-        "bg-gradient-to-br from-emerald-50 to-emerald-100 hover:from-emerald-100 hover:to-emerald-200 border-emerald-300",
-      iconColor: "text-emerald-700",
-      shadowColor: "shadow-emerald-100",
-    },
-    {
-      type: "button",
-      label: "Button Block",
-      icon: Link,
-      description: "Interactive call-to-action",
-      color:
-        "bg-gradient-to-br from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 border-orange-300",
-      iconColor: "text-orange-700",
-      shadowColor: "shadow-orange-100",
-    },
-    {
-      type: "divider",
-      label: "Divider",
-      icon: Minus,
-      description: "Visual section separator",
-      color:
-        "bg-gradient-to-br from-slate-50 to-slate-100 hover:from-slate-100 hover:to-slate-200 border-slate-300",
-      iconColor: "text-slate-700",
-      shadowColor: "shadow-slate-100",
-    },
-    {
-      type: "social",
-      label: "Social Links",
-      icon: Globe,
-      description: "Social media icons",
-      color:
-        "bg-gradient-to-br from-rose-50 to-rose-100 hover:from-rose-100 hover:to-rose-200 border-rose-300",
-      iconColor: "text-rose-700",
-      shadowColor: "shadow-rose-100",
-    },
-  ];
+// Element configurations with enhanced styling
+const elementTypes = [
+  {
+    type: "shape",
+    label: "Shape Block",
+    icon: Square,
+    description: "Rectangle or Circle shapes",
+classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+    iconColor: "text-pink-600 bg-pink-100"
+  },
+  {
+    type: "text",
+    label: "Text Block",
+    icon: Type,
+    description: "Add editable text content",
+   classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+    iconColor: "text-pink-600 bg-pink-100"
+  },
+  {
+    type: "header",
+    label: "Header Block",
+    icon: Type,
+    description: "Add prominent headings",
+    classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+    iconColor: "text-purple-600 bg-purple-100"
+  },
+  {
+    type: "image",
+    label: "Image Block",
+    icon: Image,
+    description: "Upload or link images",
+    classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+    iconColor: "text-purple-600 bg-purple-100"
+  },
+  {
+    type: "button",
+    label: "Button Block",
+    icon: Link,
+    description: "Interactive call-to-action",
+    classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+    iconColor: "text-blue-600 bg-blue-100"
+  },
+  {
+    type: "divider",
+    label: "Divider",
+    icon: Minus,
+    description: "Visual section separator",
+    classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+    iconColor: "text-blue-600 bg-blue-100"
+  },
+  {
+    type: "social",
+    label: "Social Links",
+    icon: Globe,
+    classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+    iconColor: "text-pink-600 bg-pink-100"
+  }
+];
+
 
   // Complete sections list with all combinations
   const sectionCategories = [
@@ -389,14 +375,14 @@ export default function EditorSidebar({
   ];
 
   const renderElementsTab = () => (
-    <div className="space-y-6 bg-gradient-to-l from-[#f51398] to-[#2001fd]">
+    <div className="space-y-6 bg-gradient-to-l from-white to-white">
       {/* Elements Section */}
       <div className="space-y-4">
         <div className="flex items-center gap-2 px-4 pt-6">
           <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-md">
             <Blocks className="w-5 h-5 text-white" />
           </div>
-          <h3 className="font-bold text-lg bg-gradient-to-r from-white to-white bg-clip-text text-transparent">
+          <h3 className="font-bold text-lg bg-gradient-to-r from-white to-white bg-clip-text text-">
             Elements
           </h3>
           <Badge
@@ -407,43 +393,48 @@ export default function EditorSidebar({
           </Badge>
         </div>
 
-        <div className="px-4 space-y-3">
-          {elementTypes.map((element) => {
-            const Icon = element.icon;
-            return (
-              <Card
-                key={element.type}
-                className={`cursor-grab active:cursor-grabbing transition-all duration-300 hover:shadow-lg hover:shadow-${element.shadowColor} ${element.color} border-2 transform hover:scale-[1.02]`}
-                draggable
-                onDragStart={(e) =>
-                  e.dataTransfer.setData("type", element.type)
-                }
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`p-3 rounded-xl bg-white/90 ${element.iconColor} flex-shrink-0 shadow-sm`}
-                    >
-                      <Icon size={22} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm truncate text-gray-800">
-                        {element.label}
-                      </h4>
-                      <p className="text-xs text-gray-600 truncate">
-                        {element.description}
-                      </p>
-                    </div>
-                    <div className="flex-shrink-0">
-                      <Grip className="w-4 h-4 text-gray-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
+ <div className="px-4 space-y-4">
+  {elementTypes.map((element) => {
+    const Icon = element.icon;
+    return (
+      <Card
+        key={element.type}
+        className={`cursor-grab active:cursor-grabbing transition-all duration-300
+        ${element.shadowColor} ${element.color} ${element.classes}
+        transform hover:scale-[1.02] border-2 border-black rounded-xl`}
+        draggable
+        onDragStart={(e) => e.dataTransfer.setData("type", element.type)}
+      >
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <div
+              className={`p-3 rounded-lg ${element.iconColor} flex-shrink-0 shadow-sm border border-black/30`}
+            >
+              <Icon size={22} />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <h4 className="font-semibold text-sm truncate text-gray-800">
+                {element.label}
+              </h4>
+              <p className="text-xs text-gray-600 truncate">
+                {element.description}
+              </p>
+            </div>
+
+            <div className="flex-shrink-0">
+              <Grip className="w-4 h-4 text-gray-400" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  })}
+</div>
+
+</div>
+
+
 
       {/* Properties Section */}
       {selectedElement && (
@@ -534,13 +525,13 @@ export default function EditorSidebar({
   );
 
   const renderSectionsTab = () => (
-    <ScrollArea className="h-full bg-gradient-to-l from-[#f51398] to-[#2001fd]">
+    <ScrollArea className="h-full">
       <div className="space-x-10 pb-6">
         <div className="flex items-center gap-2 px-4 pt-6 pb-4">
           <div className="p-2 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg shadow-md">
             <LayoutTemplate className="w-5 h-5 text-white" />
           </div>
-          <h3 className="font-bold text-lg bg-gradient-to-r from-white to-white bg-clip-text text-transparent">
+          <h3 className="font-bold text-lg bg-clip-text text-black">
             Sections
           </h3>
           <Badge
@@ -551,22 +542,22 @@ export default function EditorSidebar({
           </Badge>
         </div>
 
-        {sectionCategories.map((category) => (
+      {sectionCategories.map((category) => (
           <div key={category.category} className="space-y-3">
             <div className="px-4">
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500"></div>
+                <div className="h-2 w-2 rounded-full bg-gradient-to-r from-[#c40cd8] to-purple-400"></div>
                 <h4 className="font-bold text-sm text-gray-700 uppercase tracking-wider">
                   {category.category}
                 </h4>
-                <div className="flex-1 h-px bg-gradient-to-r from-emerald-200 to-transparent"></div>
+                <div className="flex-1 h-px bg-gradient-to-r from-purple-200 to-transparent"></div>
               </div>
             </div>
             <div className="px-4 space-y-3">
               {category.sections.map((section) => (
                 <Card
                   key={section.id}
-                  className="cursor-grab active:cursor-grabbing hover:shadow-lg transition-all duration-300 bg-gradient-to-br from-white to-gray-50/80 border-2 border-gray-200 hover:border-emerald-300 transform hover:scale-[1.02]"
+                  className="cursor-grab active:cursor-grabbing hover:shadow-lg transition-all duration-300 bg-white hover:bg-purple-50 border border-purple-200 hover:border-[#c40cd8] transform hover:scale-[1.02] shadow-md"
                   draggable
                   onDragStart={(e) =>
                     e.dataTransfer.setData("sectionDropType", section.type)
@@ -581,8 +572,8 @@ export default function EditorSidebar({
                         {section.preview}
                       </div>
                       <div className="flex flex-col items-center gap-2 flex-shrink-0">
-                        <Grip className="w-4 h-4 text-emerald-500" />
-                        <ChevronRight className="w-4 h-4 text-emerald-500" />
+                        <Grip className="w-4 h-4 text-[#c40cd8]" />
+                        <ChevronRight className="w-4 h-4 text-[#c40cd8]" />
                       </div>
                     </div>
                   </CardContent>
@@ -596,13 +587,13 @@ export default function EditorSidebar({
   );
 
   const renderSettingsTab = () => (
-    <ScrollArea className="h-full bg-gradient-to-l from-[#f51398] to-[#2001fd]">
+    <ScrollArea className="h-full">
       <div className="space-y-6 pb-6 px-4">
         <div className="flex items-center gap-2 pt-6">
           <div className="p-2 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-md">
             <Settings className="w-5 h-5 text-white" />
           </div>
-          <h3 className="font-bold text-lg bg-gradient-to-r from-white to-white bg-clip-text text-transparent">
+          <h3 className="font-bold text-lg bg-clip-text text-black">
             Global Settings
           </h3>
         </div>
@@ -783,25 +774,25 @@ export default function EditorSidebar({
         value={activeTab}
         onValueChange={setActiveTab}
         className="h-full flex flex-col"
-      >
-        <TabsList className="grid w-full h-17 z-10 grid-cols-3 bg-gradient-to-r from-blue-100 via-emerald-100 to-orange-100 border-b-2 border-gray-200 flex-shrink-0 p-1">
+>
+        <TabsList className="grid w-full h-22 z-10 grid-cols-3 bg-gradient-to-r from-[#fbd3ec] to-[#dcd2ff] border-b-2 border-[#f3c7ff] flex-shrink-0 p-1">
           <TabsTrigger
             value="elements"
-            className="flex flex-col items-center gap-1 py-3 text-blue-700 hover:bg-blue-200/70 data-[state=active]:bg-white data-[state=active]:text-blue-900 data-[state=active]:shadow-lg data-[state=active]:border data-[state=active]:border-blue-200 rounded-lg transition-all duration-300"
+            className="flex flex-col items-center gap-1 py-3 text-[#f51398] hover:bg-gradient-to-br hover:from-pink-100 hover:to-pink-200/70 data-[state=active]:bg-white data-[state=active]:text-[#f51398] data-[state=active]:shadow-lg data-[state=active]:border-2 data-[state=active]:border-[#f51398] rounded-lg transition-all duration-300"
           >
             <Blocks size={20} />
             <span className="text-xs font-semibold">Elements</span>
           </TabsTrigger>
           <TabsTrigger
             value="sections"
-            className="flex flex-col items-center gap-1 py-3 text-emerald-700 hover:bg-emerald-200/70 data-[state=active]:bg-white data-[state=active]:text-emerald-900 data-[state=active]:shadow-lg data-[state=active]:border data-[state=active]:border-emerald-200 rounded-lg transition-all duration-300"
+            className="flex flex-col items-center gap-1 py-3 text-[#c40cd8] hover:bg-gradient-to-br hover:from-purple-100 hover:to-purple-200/70 data-[state=active]:bg-white data-[state=active]:text-[#c40cd8] data-[state=active]:shadow-lg data-[state=active]:border-2 data-[state=active]:border-[#c40cd8] rounded-lg transition-all duration-300"
           >
             <LayoutTemplate size={20} />
             <span className="text-xs font-semibold">Sections</span>
           </TabsTrigger>
           <TabsTrigger
             value="settings"
-            className="flex flex-col items-center gap-1 py-3 text-orange-700 hover:bg-orange-200/70 data-[state=active]:bg-white data-[state=active]:text-orange-900 data-[state=active]:shadow-lg data-[state=active]:border data-[state=active]:border-orange-200 rounded-lg transition-all duration-300"
+            className="flex flex-col items-center gap-1 py-3 text-[#2001fd] hover:bg-gradient-to-br hover:from-blue-100 hover:to-blue-200/70 data-[state=active]:bg-white data-[state=active]:text-[#2001fd] data-[state=active]:shadow-lg data-[state=active]:border-2 data-[state=active]:border-[#2001fd] rounded-lg transition-all duration-300"
           >
             <Settings size={20} />
             <span className="text-xs font-semibold">Settings</span>

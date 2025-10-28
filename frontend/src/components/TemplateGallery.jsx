@@ -5,8 +5,8 @@ const templatesData = [
     category: "Real Estate",
     color: "bg-green-500",
     templates: [
-      { title: "New Property Listing (Email)", type: "email", placeholderUrl: "https://placehold.co/400x300/d1fae5/065f46?text=New+Property", link: "https://email-newsletter-tan.vercel.app/?template=https%3A%2F%2Fres.cloudinary.com%2Fdhlex64es%2Fraw%2Fupload%2Fv1758865040%2Fnewsletter_1758865041034"},
-      { title: "Limited-Time Offer (Email)", type: "email", placeholderUrl: "https://placehold.co/400x300/a7f3d0/047857?text=Limited+Offer", link: "https://email-newsletter-tan.vercel.app/?template=https%3A%2F%2Fres.cloudinary.com%2Fdhlex64es%2Fraw%2Fupload%2Fv1759128968%2Fnewsletter_1759128967504" },
+      { title: "New Property Listing (Email)", type: "email", placeholderUrl: "/public/HealthCare1.png", link: "https://email-newsletter-tan.vercel.app/?template=https%3A%2F%2Fres.cloudinary.com%2Fdhlex64es%2Fraw%2Fupload%2Fv1758865040%2Fnewsletter_1758865041034"},
+      { title: "Limited-Time Offer (Email)", type: "email", placeholderUrl: "/public/HealthCare2.png", link: "https://email-newsletter-tan.vercel.app/?template=https%3A%2F%2Fres.cloudinary.com%2Fdhlex64es%2Fraw%2Fupload%2Fv1759128968%2Fnewsletter_1759128967504" },
       { title: "Monthly Newsletter (Email)", type: "email", placeholderUrl: "https://placehold.co/400x300/6ee7b7/059669?text=Monthly+Newsletter", link: "https://email-newsletter-tan.vercel.app/?template=https%3A%2F%2Fres.cloudinary.com%2Fdhlex64es%2Fraw%2Fupload%2Fv1758868499%2Fnewsletter_1758868500757" },
        { title: "Monthly Newsletter (Email)", type: "email", placeholderUrl: "https://placehold.co/400x300/6ee7b7/059669?text=Monthly+Newsletter", link: "https://email-newsletter-tan.vercel.app/?template=https%3A%2F%2Fres.cloudinary.com%2Fdhlex64es%2Fraw%2Fupload%2Fv1759140278%2Fnewsletter_1759140278076" },
       // { title: "Quick Offer Alert (WhatsApp)", type: "whatsapp", placeholderUrl: "https://placehold.co/400x300/dcfce7/4338ca?text=Quick+Offer", link: "#" },
@@ -125,78 +125,114 @@ export default function TemplateGallery() {
     ? templatesData
     : templatesData.filter(section => section.category === selectedCategory);
 
-  return (
-    <div className="min-h-screen bg-gray-100 p-8 sm:p-12 font-sans text-gray-800">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 leading-tight">
-            Template Gallery 🎨
-          </h1>
-          <p className="mt-4 text-lg text-gray-600">
-            Choose from a variety of professionally designed email newsletter and WhatsApp templates to get started.
-          </p>
-        </div>
+ return (
+  <div className="min-h-screen bg-white p-8 sm:p-12 font-poppins text-gray-800">
+    <div className="max-w-5xl mx-auto">
+      
+      {/* Header */}
+      <div className="text-center mb-12">
+        <h1 className="text-4xl sm:text-5xl font-black 
+          bg-gradient-to-r from-[#f51398] via-[#c40cd8] to-[#2001fd] 
+          bg-clip-text text-transparent tracking-tight leading-tight">
+          Template Gallery ✨
+        </h1>
+        <p className="mt-4 text-lg font-medium 
+          bg-gradient-to-r from-[#f51398] to-[#2001fd] bg-clip-text text-transparent">
+          Choose a design to start crafting your masterpiece.
+        </p>
+      </div>
 
-        {/* Filter Section */}
-        <div className="flex flex-wrap justify-center gap-2 mb-12">
+      {/* Filter Pills */}
+      <div className="flex flex-wrap justify-center gap-3 mb-12">
+        <button
+          onClick={() => setSelectedCategory("All")}
+          className={`px-6 py-2 rounded-full font-semibold border border-black 
+          transition-all duration-300 ${
+            selectedCategory === "All"
+              ? "bg-gradient-to-r from-[#f51398] via-[#c40cd8] to-[#2001fd] text-white shadow-lg scale-105"
+              : "bg-white text-gray-900 hover:scale-105 hover:shadow-[0_0_20px_rgba(169,69,255,0.3)]"
+          }`}
+        >
+          All
+        </button>
+
+        {templatesData.map((section, index) => (
           <button
-            onClick={() => setSelectedCategory("All")}
-            className={`px-4 py-2 rounded-full font-medium transition-colors duration-200 ${
-              selectedCategory === "All"
-                ? "bg-gray-800 text-white shadow-lg"
-                : "bg-white text-gray-800 hover:bg-gray-200"
+            key={index}
+            onClick={() => setSelectedCategory(section.category)}
+            className={`px-6 py-2 rounded-full font-semibold border border-black 
+            transition-all duration-300 ${
+              selectedCategory === section.category
+                ? "bg-gradient-to-r from-[#f51398] via-[#c40cd8] to-[#2001fd] text-white shadow-lg scale-105"
+                : "bg-white text-gray-900 hover:scale-105 hover:shadow-[0_0_20px_rgba(169,69,255,0.3)]"
             }`}
           >
-            All
+            {section.category}
           </button>
-          {templatesData.map((section, index) => (
-            <button
-              key={index}
-              onClick={() => setSelectedCategory(section.category)}
-              className={`px-4 py-2 rounded-full font-medium transition-colors duration-200 ${
-                selectedCategory === section.category
-                  ? `${section.color} text-white shadow-lg`
-                  : "bg-white text-gray-800 hover:bg-gray-200"
-              }`}
-            >
-              {section.category}
-            </button>
-          ))}
-        </div>
-
-        {/* Templates Section */}
-        {filteredData.map((section, index) => (
-          <section key={index} className="mb-12">
-            <h2 className="text-3xl font-bold mb-6 text-gray-900 border-l-4 pl-4 rounded-sm" style={{ borderColor: section.color.replace('bg-', '') }}>
-              {section.category}
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {section.templates.map((template, templateIndex) => (
-                <div
-                  key={templateIndex}
-                  className="bg-white rounded-lg shadow-xl overflow-hidden transform transition duration-300 hover:scale-105 hover:shadow-2xl group border border-gray-200"
-                >
-                  <a href={template.link} target="_blank" rel="noopener noreferrer" className="block relative">
-                    <img
-                      src={template.placeholderUrl}
-                      alt={template.title}
-                      className="w-full h-64 object-cover rounded-t-lg transition-opacity duration-300 group-hover:opacity-50"
-                    />
-                    <div className="absolute inset-0  bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      {/* <p className="text-white text-lg font-semibold">Click to Edit Template</p> */}
-                    </div>
-                  </a>
-                  <div className="p-4">
-                    <h3 className="text-xl font-semibold text-gray-900 text-center">
-                      {template.title}
-                    </h3>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
         ))}
       </div>
+
+      {/* Templates Sections */}
+      {filteredData.map((section, index) => (
+        <section key={index} className="mb-12">
+          <h2 className="text-3xl font-black mb-6 
+            bg-gradient-to-r from-[#f51398] via-[#c40cd8] to-[#2001fd] 
+            bg-clip-text text-transparent border-l-4 pl-4 border-black">
+            {section.category}
+          </h2>
+
+          {/* Template Cards */}
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
+    {section.templates.map((template, i) => (
+        <div
+            key={i}
+            className="
+                bg-white rounded-2xl border-2 border-black shadow-[0_0_8px_rgba(0,0,0,0.3)]
+                
+                /* --- Fixed Height in Static State --- */
+                h-80
+                overflow-hidden
+                
+                /* --- Transitions & Layering --- */
+                transition-all duration-500 ease-in-out
+                relative
+                
+                /* --- Hover State (Expansion) --- */
+                hover:h-auto
+                hover:shadow-[0_0_24px_rgba(168,85,247,0.6)]
+                hover:z-20
+            "
+        >
+            <a 
+                href={template.link} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block h-full flex flex-col"
+            >
+                {/* Image Container */}
+                <div className="flex-1 overflow-hidden rounded-t-lg min-h-0">
+                    <img
+                        src={template.placeholderUrl}
+                        alt={template.title}
+                        className="w-full h-full object-cover transition-all duration-500"
+                    />
+                </div>
+
+                {/* Title - Always visible at bottom */}
+                <div className="p-4 bg-white border-t-2 border-black">
+                    <h3 className="text-xl text-center font-black 
+                        bg-gradient-to-r from-[#f51398] via-[#c40cd8] to-[#2001fd] 
+                        bg-clip-text text-transparent tracking-tight leading-tight">
+                        {template.title}
+                    </h3>
+                </div>
+            </a>
+        </div>
+    ))}
+</div>
+        </section>
+      ))}
     </div>
-  );
+  </div>
+);
 }

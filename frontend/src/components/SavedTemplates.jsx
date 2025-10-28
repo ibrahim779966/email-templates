@@ -378,8 +378,8 @@ export default function TemplateGallerySaved() {
   // RENDER MAIN CONTENT
   // ============================================================================
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="px-6 py-6 max-w-7xl mx-auto">
+    <div className="min-h-screen">
+      <div className="py-6 max-w-400 mx-auto">
         {/* Notification Toast */}
         {notification && (
           <div
@@ -430,16 +430,18 @@ export default function TemplateGallerySaved() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">
-              Saved Templates
-            </h1>
+           <h1 className="text-4xl font-extrabold mt-10 mb-2 
+bg-gradient-to-r from-[#f51398] via-[#c40cd8] to-[#2001fd]
+bg-clip-text text-transparent tracking-tight">
+  Saved Templates
+</h1>
             <p className="text-gray-600">
               {templates.length} {templates.length === 1 ? "template" : "templates"} saved
             </p>
           </div>
           <Link
             to="/"
-            className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+            className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-l from-[#f51398] to-[#2001fd] text-white hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
           >
             <svg
               className="w-5 h-5"
@@ -458,31 +460,38 @@ export default function TemplateGallerySaved() {
           </Link>
         </div>
 
-        {/* Search Bar */}
-        <div className="mb-6">
-          <div className="relative max-w-md">
-            <svg
-              className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name or date..."
-              className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm"
-            />
-          </div>
-        </div>
+      {/* Search Bar */}
+<div className="mb-6">
+  <div className="relative max-w-md group">
+    <svg
+      className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 
+      text-gray-400 group-focus-within:text-[#f51398] transition-colors duration-300"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+      />
+    </svg>
+
+    <input
+      type="text"
+      value={searchQuery}
+      onChange={(e) => setSearchQuery(e.target.value)}
+      placeholder="Search templates..."
+      className="w-full pl-12 pr-4 py-3 rounded-xl 
+      bg-white shadow-md outline-none border-2 border-gray-200
+      placeholder-gray-400 text-gray-800 font-medium
+      focus:ring-2 focus:ring-offset-2 focus:border-transparent
+      focus:ring-[#f51398] focus:ring-offset-[#2001fd] 
+      group-hover:border-[#f51398] transition-all duration-300"
+    />
+  </div>
+</div>
 
         {/* Empty State */}
         {filteredTemplates.length === 0 && (
@@ -535,167 +544,116 @@ export default function TemplateGallerySaved() {
         )}
 
         {/* Templates Grid */}
-        {filteredTemplates.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredTemplates.map((template) => (
-              <div
-                key={template._id}
-                className="group bg-white rounded-2xl border-2 border-gray-200 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 overflow-hidden"
+       {/* Templates Grid */}
+{filteredTemplates.length > 0 && (
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+    {filteredTemplates.map((template) => (
+      <div
+        key={template._id}
+        className="group bg-white rounded-2xl border-2 border-black shadow-md hover:shadow-2xl transition-all duration-300 overflow-hidden"
+      >
+        
+        {/* Template Preview Image */}
+        <div className="relative h-80 bg-gray-100 rounded-lg overflow-hidden group border-2 border-black shadow-inner">
+          {template.previewImageUrl ? (
+            <div className="w-full flex justify-center items-start overflow-hidden group-hover:overflow-y-auto scrollbar-hide">
+              <img
+                src={template.previewImageUrl}
+                alt={template.name}
+                className="w-[600px] object-contain pointer-events-none"
+              />
+            </div>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <svg
+                className="w-16 h-16 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                {/* Template Preview Image */}
-                <div className="aspect-[4/3] bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden relative">
-                  {template.previewImageUrl ? (
-                    <>
-                      <img
-                        src={template.previewImageUrl}
-                        alt={template.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-300"></div>
-                    </>
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <svg
-                        className="w-16 h-16 text-gray-300"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
-                    </div>
-                  )}
-                </div>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </div>
+          )}
+        </div>
 
-                {/* Template Info */}
-                <div className="p-4">
-                  <h3 className="text-base font-semibold text-gray-900 mb-1 truncate group-hover:text-blue-600 transition-colors">
-                    {template.name || "Untitled Template"}
-                  </h3>
-                  <p className="text-xs text-gray-500 mb-4">
-                    {template.updatedAt
-                      ? new Date(template.updatedAt).toLocaleDateString("en-US", {
-                          year: "numeric",
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "No date"}
-                  </p>
+        {/* Template Info */}
+        <div className="p-5 space-y-3">
+          <h3 className="text-base font-extrabold truncate 
+          bg-gradient-to-r from-[#f51398] via-[#c40cd8] to-[#2001fd] 
+          bg-clip-text text-transparent">
+            {template.name || "Untitled Template"}
+          </h3>
 
-                  {/* Action Buttons */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => handleEdit(template)}
-                      className="px-3 py-2 text-xs font-semibold rounded-lg bg-gradient-to-r from-gray-700 to-gray-800 text-white hover:from-gray-800 hover:to-gray-900 transition-all duration-200 flex items-center justify-center gap-1"
-                    >
-                      <svg
-                        className="w-3.5 h-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
-                      </svg>
-                      Edit
-                    </button>
+          <p className="text-xs font-medium text-gray-500">
+            {template.updatedAt
+              ? new Date(template.updatedAt).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "No date"}
+          </p>
 
-                    <button
-                      onClick={() => handleSend(template)}
-                      className="px-3 py-2 text-xs font-semibold rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center justify-center gap-1"
-                    >
-                      <svg
-                        className="w-3.5 h-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                        />
-                      </svg>
-                      Send
-                    </button>
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-2">
 
-                    <button
-                      onClick={() => handleDuplicate(template)}
-                      disabled={duplicatingId === template._id}
-                      className="px-3 py-2 text-xs font-semibold rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-                    >
-                      {duplicatingId === template._id ? (
-                        <>
-                          <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white"></div>
-                          <span>...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            className="w-3.5 h-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                            />
-                          </svg>
-                          Duplicate
-                        </>
-                      )}
-                    </button>
+            {/* Edit */}
+            <button
+              onClick={() => handleEdit(template)}
+              className="px-2 py-2 text-xs font-bold text-white rounded-lg
+              bg-gradient-to-r from-[#f51398] via-[#c40cd8] to-[#2001fd]
+              hover:brightness-110 hover:scale-[1.05] shadow-md transition-all">
+              Edit
+            </button>
 
-                    <button
-                      onClick={() => handleDelete(template._id)}
-                      disabled={deletingId === template._id}
-                      className="px-3 py-2 text-xs font-semibold rounded-lg bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-                    >
-                      {deletingId === template._id ? (
-                        <>
-                          <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white"></div>
-                          <span>...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            className="w-3.5 h-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                          Delete
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+            {/* Send */}
+            <button
+              onClick={() => handleSend(template)}
+              className="px-2 py-2 text-xs font-bold text-white rounded-lg
+              bg-gradient-to-r from-indigo-500 to-blue-600
+              hover:brightness-110 hover:scale-[1.05] shadow-md transition-all">
+              Send
+            </button>
+
+            {/* Duplicate */}
+            <button
+              onClick={() => handleDuplicate(template)}
+              disabled={duplicatingId === template._id}
+              className="px-2 py-2 text-xs font-bold text-white rounded-lg
+              bg-gradient-to-r from-blue-500 to-blue-700
+              hover:brightness-110 hover:scale-[1.05] shadow-md transition-all
+              disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {duplicatingId === template._id ? "..." : "Duplicate"}
+            </button>
+
+            {/* Delete */}
+            <button
+              onClick={() => handleDelete(template._id)}
+              disabled={deletingId === template._id}
+              className="px-2 py-2 text-xs font-bold text-white rounded-lg
+              bg-gradient-to-r from-red-500 to-red-700
+              hover:brightness-110 hover:scale-[1.05] shadow-md transition-all
+              disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {deletingId === template._id ? "..." : "Delete"}
+            </button>
+
           </div>
-        )}
+        </div>
+      </div>
+    ))}
+  </div>
+)}
+
       </div>
     </div>
   );
