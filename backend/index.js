@@ -8,7 +8,7 @@ dotenv.config();
 
 // --- Import Custom Components ---
 const templateRoutes = require('./src/routes/template.routes');
-const errorHandler = require('./src/middleware/errorHandler');
+const errorHandler = require('./src/middleware/error.middleware');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
