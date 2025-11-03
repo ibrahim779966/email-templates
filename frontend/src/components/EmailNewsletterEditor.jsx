@@ -1338,7 +1338,7 @@ if (rotationValue && rotationValue !== 'none') {
   div.appendChild(inner);
   break;
 }
-
+  
       case "divider":
         div.style.backgroundColor = styles.backgroundColor || "#d1d5db";
         div.style.borderRadius = composeCornerRadius(styles, "0");

@@ -353,8 +353,8 @@ export default function ImagePropertiesPanel({
                       </SelectItem>
                       <SelectItem value="circle">Circle</SelectItem>
                       <SelectItem value="oval">Oval</SelectItem>
-                      <SelectItem value="trapezoid">Trapezoid</SelectItem>
-                      <SelectItem value="star">Star</SelectItem>
+                      {/* <SelectItem value="trapezoid">Trapezoid</SelectItem>
+                      <SelectItem value="star">Star</SelectItem> */}
                     </SelectContent>
                   </Select>
                 </div>
