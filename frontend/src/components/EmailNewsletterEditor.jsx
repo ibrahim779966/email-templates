@@ -940,12 +940,21 @@ export default function EmailNewsletterEditor() {
             elementDiv.style.width = element.styles.width;
           if (element.styles?.height)
             elementDiv.style.height = element.styles.height;
+
+          // âœ… Preserve rotation for shapes
+        if (element.type === "shape" && element.styles?.rotation) {
+          const rotation = String(element.styles.rotation).includes("deg")
+            ? element.styles.rotation
+            : element.styles.rotation + "deg";
+          elementDiv.style.transform = `rotate(${rotation})`;
+          elementDiv.style.transformOrigin = "center center";
+        }
         }
         exportContainer.appendChild(elementDiv);
       }
     });
 
-    normalizeLayoutTransforms(exportContainer);
+    // normalizeLayoutTransforms(exportContainer);
 
     return exportContainer;
   };
@@ -993,7 +1002,31 @@ export default function EmailNewsletterEditor() {
       box-shadow: none;
       box-sizing: border-box;
     `;
-    stripLayoutTransforms(div);
+stripLayoutTransforms(div);
+
+// Re-apply rotation / transform to the wrapper because stripLayoutTransforms() clears transforms.
+// Prefer explicit styles.rotation field if present, otherwise fall back to any rotate() inside styles.transform or styles.rotate
+const rotationFromStyles =
+  styles?.rotation
+    ? (String(styles.rotation).includes('deg') ? styles.rotation : styles.rotation + 'deg')
+    : null;
+
+let rotationValue = 'none';
+if (rotationFromStyles) {
+  rotationValue = `rotate(${rotationFromStyles})`;
+} else if (styles?.transform && /rotate\(/i.test(styles.transform)) {
+  // If full transform contains rotate(...) use it
+  rotationValue = styles.transform.match(/rotate\([^)]+\)/i)[0];
+} else if (styles?.rotate) {
+  rotationValue = `rotate(${String(styles.rotate).includes('deg') ? styles.rotate : styles.rotate + 'deg'})`;
+}
+
+if (rotationValue && rotationValue !== 'none') {
+  div.style.transform = rotationValue;
+  div.style.transformOrigin = 'center center';
+  // hint to browser and dom-to-image to rasterize transform properly
+  div.style.willChange = 'transform';
+}
 
     switch (element.type) {
       case "shape": {
@@ -1005,19 +1038,20 @@ export default function EmailNewsletterEditor() {
         const shapeRadius = getShapeBorderRadius(shapeType, styles);
         const shapeClip = getShapeClipPath(shapeType);
 
-        const rotationValue = styles?.rotation
-          ? `rotate(${
-              String(styles.rotation).includes("deg")
-                ? styles.rotation
-                : styles.rotation + "deg"
-            })`
-          : "none";
+        // ✅ Calculate rotation for WRAPPER (matching editor)
+  const rotationValue = styles?.rotation
+    ? `rotate(${
+        String(styles.rotation).includes("deg")
+          ? styles.rotation
+          : styles.rotation + "deg"
+      })`
+    : "none";
         div.style.width = `${shapeWidth}px`;
         div.style.height = `${shapeHeight}px`;
         div.style.background = "transparent";
         div.style.boxSizing = "border-box";
-        div.style.transform = "none";
-        div.style.transformOrigin = "top left";
+        div.style.transform = rotationValue; // ✅ On wrapper, not inner div
+  div.style.transformOrigin = "center center"; // ✅ Center rotation
 
         const getFillStyle = () => {
           const fillType = styles?.fillType || "solid";
@@ -1078,10 +1112,11 @@ export default function EmailNewsletterEditor() {
           border: ${getBorderStyles(styles)};
           box-shadow: ${styles?.boxShadow || "none"};
           box-sizing: border-box;
+           
         `;
 
         container.appendChild(shapeDiv);
-        stripLayoutTransforms(container);
+        // stripLayoutTransforms(container);
         div.appendChild(container);
         break;
       }
@@ -1232,81 +1267,78 @@ export default function EmailNewsletterEditor() {
         pushLinkRect(buttonLink.href, leftPx, topPx, widthPx, heightPx);
         break;
 
-      case "image": {
-        if (
-          element.content &&
-          (element.content.startsWith("data:") ||
-            element.content.startsWith("http"))
-        ) {
-          const imgContainer = document.createElement("div");
-          const img = document.createElement("img");
+     case "image": {
+  // Compute rotation string (same logic as above to be safe)
+  const rotationFromStyles =
+    styles?.rotation
+      ? (String(styles.rotation).includes('deg') ? styles.rotation : styles.rotation + 'deg')
+      : null;
 
-          const shapeType = styles?.shapeType || "rectangle";
-          const isPoly = isPolygonShape(shapeType);
-          const imgRadius = getShapeBorderRadius(shapeType, styles);
-          const imgClip = getShapeClipPath(shapeType);
+  let rotationValue = 'none';
+  if (rotationFromStyles) {
+    rotationValue = `rotate(${rotationFromStyles})`;
+  } else if (styles?.transform && /rotate\(/i.test(styles.transform)) {
+    rotationValue = styles.transform.match(/rotate\([^)]+\)/i)[0];
+  } else if (styles?.rotate) {
+    rotationValue = `rotate(${String(styles.rotate).includes('deg') ? styles.rotate : styles.rotate + 'deg'})`;
+  }
 
-          imgContainer.style.cssText = `
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            border: ${getBorderStyles(styles)};
-            box-shadow: ${styles.boxShadow || "none"};
-            opacity: ${styles.opacity || "1"};
-            padding: ${buildSpacing(styles, "padding") || "0"};
-            margin: ${buildSpacing(styles, "margin") || "0"};
-            box-sizing: border-box;
-            ${isPoly ? "clip-path:" + imgClip + ";" : "clip-path:none;"}
-            ${
-              isPoly
-                ? "-webkit-clip-path:" + imgClip + ";"
-                : "-webkit-clip-path:none;"
-            }
-            ${
-              !isPoly
-                ? "border-radius:" + imgRadius + ";"
-                : "border-radius:0px;"
-            }
-          `;
+  // Outer wrapper: this element must carry the border AND the rotation so dom-to-image rasterizes both together
+  div.style.cssText = `
+    position: absolute;
+    left: ${styles.left || "0px"};
+    top: ${styles.top || "0px"};
+    width: ${styles.width || "auto"};
+    height: ${styles.height || "auto"};
+    margin: 0;
+    padding: 0;
+    background-color: ${styles.backgroundColor || "transparent"};
+    border: ${getBorderStyles(styles)};
+    border-radius: ${composeCornerRadius(styles, "0px")};
+    overflow: hidden;
+    box-sizing: border-box;
+    transform-origin: center center;
+    will-change: transform;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `;
 
-          img.src = element.content;
-          img.style.cssText = `
-            width: 100%;
-            height: 100%;
-            object-fit: ${styles.objectFit || "cover"};
-            display: block;
-            filter: ${styles.filter || "none"};
-            backdrop-filter: ${styles.backdropFilter || "none"};
-            ${
-              imageRotation
-                ? `transform: rotate(${imageRotation}deg) scale(${
-                    elementScale || 1
-                  });`
-                : ""
-            }
-            transform-origin: center center;
-          `;
+  // If a rotation exists, set it explicitly (re-apply in case stripLayoutTransforms cleared it)
+  if (rotationValue && rotationValue !== 'none') {
+    div.style.transform = rotationValue;
+  }
 
-          imgContainer.appendChild(img);
-          div.appendChild(imgContainer);
-        } else {
-          div.style.backgroundColor = "#f5f5f5";
-          div.style.border = "1px dashed #ccc";
-          div.style.display = "flex";
-          div.style.alignItems = "center";
-          div.style.justifyContent = "center";
-          div.style.color = "#999";
-          div.style.fontSize = "14px";
-          div.style.borderRadius = composeCornerRadius(styles, "0");
-          div.style.boxShadow = styles.boxShadow || "none";
-          div.style.fontFamily =
-            styles.fontFamily ||
-            globalSettings.fontFamily ||
-            "Arial, sans-serif";
-          div.textContent = "Image Placeholder";
-        }
-        break;
-      }
+  // Create single inner container (so border + image are in same rendering layer)
+  const inner = document.createElement('div');
+  inner.style.cssText = `
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    display: block;
+    box-sizing: border-box;
+    border-radius: inherit;
+    background: transparent;
+  `;
+
+  const img = document.createElement("img");
+  img.src = element.content || "";
+  img.alt = "Exported Image";
+  img.style.cssText = `
+    width: 100%;
+    height: 100%;
+    object-fit: ${styles.objectFit || "cover"};
+    display: block;
+    border-radius: inherit;
+    transform: none; /* ensure no double rotation */
+    backface-visibility: hidden;
+  `;
+
+  inner.appendChild(img);
+  div.appendChild(inner);
+  break;
+}
+
       case "divider":
         div.style.backgroundColor = styles.backgroundColor || "#d1d5db";
         div.style.borderRadius = composeCornerRadius(styles, "0");

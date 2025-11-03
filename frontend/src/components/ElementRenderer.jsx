@@ -256,11 +256,26 @@ const createExportElement = (element, globalSettings) => {
       const shapeRadius = getShapeBorderRadius(shapeType, styles);
       const shapeClip = getShapeClipPath(shapeType);
 
+
+        // âœ… Calculate rotation properly
+  const rotationValue = styles?.rotation
+    ? `rotate(${
+        String(styles.rotation).includes("deg")
+          ? styles.rotation
+          : styles.rotation + "deg"
+      })`
+    : "none";
+  
       // Ensure wrapper has explicit px size
       div.style.width = `${shapeWidth}px`;
       div.style.height = `${shapeHeight}px`;
-      div.style.transform = "none";
-      div.style.transformOrigin = "top left";
+       div.style.background = "transparent";
+       div.style.boxSizing = "border-box";
+       div.style.transform = rotationValue;  // âœ… Apply rotation
+       div.style.transformOrigin = "center center";  // âœ… Use center for rotation
+
+     
+
 
       const getFillStyle = () => {
         const fillType = styles?.fillType || "solid";
