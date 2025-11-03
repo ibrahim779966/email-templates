@@ -1,3 +1,4 @@
+// EditorSidebar.jsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   Settings,
@@ -67,65 +68,71 @@ export default function EditorSidebar({
     }
   }, [selectedElement]);
 
-// Element configurations with enhanced styling
-const elementTypes = [
-  {
-    type: "shape",
-    label: "Shape Block",
-    icon: Square,
-    description: "Rectangle or Circle shapes",
-classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
-    iconColor: "text-pink-600 bg-pink-100"
-  },
-  {
-    type: "text",
-    label: "Text Block",
-    icon: Type,
-    description: "Add editable text content",
-   classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
-    iconColor: "text-pink-600 bg-pink-100"
-  },
-  {
-    type: "header",
-    label: "Header Block",
-    icon: Type,
-    description: "Add prominent headings",
-    classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
-    iconColor: "text-purple-600 bg-purple-100"
-  },
-  {
-    type: "image",
-    label: "Image Block",
-    icon: Image,
-    description: "Upload or link images",
-    classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
-    iconColor: "text-purple-600 bg-purple-100"
-  },
-  {
-    type: "button",
-    label: "Button Block",
-    icon: Link,
-    description: "Interactive call-to-action",
-    classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
-    iconColor: "text-blue-600 bg-blue-100"
-  },
-  {
-    type: "divider",
-    label: "Divider",
-    icon: Minus,
-    description: "Visual section separator",
-    classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
-    iconColor: "text-blue-600 bg-blue-100"
-  },
-  {
-    type: "social",
-    label: "Social Links",
-    icon: Globe,
-    classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
-    iconColor: "text-pink-600 bg-pink-100"
-  }
-];
-
+  // Element configurations with enhanced styling
+  const elementTypes = [
+    {
+      type: "shape",
+      label: "Shape Block",
+      icon: Square,
+      description: "Rectangle or Circle shapes",
+      classes:
+        "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+      iconColor: "text-pink-600 bg-pink-100",
+    },
+    {
+      type: "text",
+      label: "Text Block",
+      icon: Type,
+      description: "Add editable text content",
+      classes:
+        "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+      iconColor: "text-pink-600 bg-pink-100",
+    },
+    {
+      type: "header",
+      label: "Header Block",
+      icon: Type,
+      description: "Add prominent headings",
+      classes:
+        "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+      iconColor: "text-purple-600 bg-purple-100",
+    },
+    {
+      type: "image",
+      label: "Image Block",
+      icon: Image,
+      description: "Upload or link images",
+      classes:
+        "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+      iconColor: "text-purple-600 bg-purple-100",
+    },
+    {
+      type: "button",
+      label: "Button Block",
+      icon: Link,
+      description: "Interactive call-to-action",
+      classes:
+        "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+      iconColor: "text-blue-600 bg-blue-100",
+    },
+    {
+      type: "divider",
+      label: "Divider",
+      icon: Minus,
+      description: "Visual section separator",
+      classes:
+        "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+      iconColor: "text-blue-600 bg-blue-100",
+    },
+    {
+      type: "social",
+      label: "Social Links",
+      icon: Globe,
+      classes:
+        "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow-pink-300/60 transition-all duration-200",
+      iconColor: "text-pink-600 bg-pink-100",
+    },
+  ];
 
   // Complete sections list with all combinations
   const sectionCategories = [
@@ -393,48 +400,47 @@ classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow
           </Badge>
         </div>
 
- <div className="px-4 space-y-4">
-  {elementTypes.map((element) => {
-    const Icon = element.icon;
-    return (
-      <Card
-        key={element.type}
-        className={`cursor-grab active:cursor-grabbing transition-all duration-300
+        <div className="px-4 space-y-4">
+          {elementTypes.map((element) => {
+            const Icon = element.icon;
+            return (
+              <Card
+                key={element.type}
+                className={`cursor-grab active:cursor-grabbing transition-all duration-300
         ${element.shadowColor} ${element.color} ${element.classes}
         transform hover:scale-[1.02] border-2 border-black rounded-xl`}
-        draggable
-        onDragStart={(e) => e.dataTransfer.setData("type", element.type)}
-      >
-        <CardContent className="p-4">
-          <div className="flex items-center gap-3">
-            <div
-              className={`p-3 rounded-lg ${element.iconColor} flex-shrink-0 shadow-sm border border-black/30`}
-            >
-              <Icon size={22} />
-            </div>
+                draggable
+                onDragStart={(e) =>
+                  e.dataTransfer.setData("type", element.type)
+                }
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`p-3 rounded-lg ${element.iconColor} flex-shrink-0 shadow-sm border border-black/30`}
+                    >
+                      <Icon size={22} />
+                    </div>
 
-            <div className="flex-1 min-w-0">
-              <h4 className="font-semibold text-sm truncate text-gray-800">
-                {element.label}
-              </h4>
-              <p className="text-xs text-gray-600 truncate">
-                {element.description}
-              </p>
-            </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-sm truncate text-gray-800">
+                        {element.label}
+                      </h4>
+                      <p className="text-xs text-gray-600 truncate">
+                        {element.description}
+                      </p>
+                    </div>
 
-            <div className="flex-shrink-0">
-              <Grip className="w-4 h-4 text-gray-400" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  })}
-</div>
-
-</div>
-
-
+                    <div className="flex-shrink-0">
+                      <Grip className="w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Properties Section */}
       {selectedElement && (
@@ -542,7 +548,7 @@ classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow
           </Badge>
         </div>
 
-      {sectionCategories.map((category) => (
+        {sectionCategories.map((category) => (
           <div key={category.category} className="space-y-3">
             <div className="px-4">
               <div className="flex items-center gap-2">
@@ -774,7 +780,7 @@ classes: "bg-white hover:bg-pink-50 hover:border-pink-500 shadow-md hover:shadow
         value={activeTab}
         onValueChange={setActiveTab}
         className="h-full flex flex-col"
->
+      >
         <TabsList className="grid w-full h-22 z-10 grid-cols-3 bg-gradient-to-r from-[#fbd3ec] to-[#dcd2ff] border-b-2 border-[#f3c7ff] flex-shrink-0 p-1">
           <TabsTrigger
             value="elements"

@@ -32,10 +32,12 @@ const ShapePropertiesPanel = ({
   deleteElement,
 }) => {
   const [activeTab, setActiveTab] = useState("shape");
-
   const styles = element.styles || {};
 
-  // Only Rectangle and Circle
+  // ============================================================================
+  // CONFIG
+  // ============================================================================
+
   const shapeOptions = [
     { value: "rectangle", label: "Rectangle", icon: Square },
     { value: "circle", label: "Circle", icon: Circle },
@@ -43,19 +45,171 @@ const ShapePropertiesPanel = ({
 
   const currentShape = styles.shapeType || "rectangle";
 
+  // ============================================================================
+  // HELPER FUNCTIONS
+  // ============================================================================
+
+  /**
+   * Parse px value - removes 'px' suffix and returns integer
+   * @param {string|number} value - Value with or without 'px'
+   * @returns {number} Parsed integer value
+   */
+  const parsePx = (value) => parseInt(value) || 0;
+
+  /**
+   * Add px suffix to value
+   * @param {string|number} value - Numeric value
+   * @returns {string} Value with 'px' suffix
+   */
+  const toPx = (value) => `${value}px`;
+
+  // ============================================================================
+  // STYLE UPDATE HANDLERS
+  // ============================================================================
+
+  /**
+   * Generic style change handler
+   * @param {string} property - CSS property name
+   * @param {any} value - Property value
+   */
   const handleStyleChange = (property, value) => {
     updateElementStyle(element.id, { [property]: value });
   };
 
+  /**
+   * Color change handler
+   * @param {string} property - CSS property name
+   * @param {string} value - Hex color value
+   */
   const handleColorChange = (property, value) => {
     updateElementStyle(element.id, { [property]: value });
   };
 
+  /**
+   * Gradient change handler
+   * @param {string} property - Gradient property name
+   * @param {string} value - Property value
+   */
   const handleGradientChange = (property, value) => {
     updateElementStyle(element.id, { [property]: value });
   };
 
-  // Border radius controls for rectangle
+  // ============================================================================
+  // SHADOW HANDLERS
+  // ============================================================================
+
+  /**
+   * Build box-shadow CSS string from individual properties
+   * @param {object} params - Shadow parameters
+   * @returns {string} Complete box-shadow CSS string
+   */
+  const buildShadowString = ({ offsetX, offsetY, blur, color }) => {
+    if (
+      parsePx(offsetX) === 0 &&
+      parsePx(offsetY) === 0 &&
+      parsePx(blur) === 0
+    ) {
+      return "none";
+    }
+    return `${offsetX} ${offsetY} ${blur} ${color}`;
+  };
+
+  /**
+   * Handle shadow X offset change
+   * @param {string} value - New X offset value
+   */
+  const handleShadowOffsetXChange = (value) => {
+    const newShadow = buildShadowString({
+      offsetX: toPx(value),
+      offsetY: styles.shadowOffsetY || "0px",
+      blur: styles.shadowBlurRadius || "0px",
+      color: styles.shadowColor || "#000000",
+    });
+
+    updateElementStyle(element.id, {
+      boxShadow: newShadow,
+      shadowOffsetX: toPx(value),
+    });
+  };
+
+  /**
+   * Handle shadow Y offset change
+   * @param {string} value - New Y offset value
+   */
+  const handleShadowOffsetYChange = (value) => {
+    const newShadow = buildShadowString({
+      offsetX: styles.shadowOffsetX || "0px",
+      offsetY: toPx(value),
+      blur: styles.shadowBlurRadius || "0px",
+      color: styles.shadowColor || "#000000",
+    });
+
+    updateElementStyle(element.id, {
+      boxShadow: newShadow,
+      shadowOffsetY: toPx(value),
+    });
+  };
+
+  /**
+   * Handle shadow blur change
+   * @param {string} value - New blur radius value
+   */
+  const handleShadowBlurChange = (value) => {
+    const newShadow = buildShadowString({
+      offsetX: styles.shadowOffsetX || "0px",
+      offsetY: styles.shadowOffsetY || "0px",
+      blur: toPx(value),
+      color: styles.shadowColor || "#000000",
+    });
+
+    updateElementStyle(element.id, {
+      boxShadow: newShadow,
+      shadowBlurRadius: toPx(value),
+    });
+  };
+
+  /**
+   * Handle shadow color change
+   * @param {string} color - New color value
+   */
+  const handleShadowColorChange = (color) => {
+    const newShadow = buildShadowString({
+      offsetX: styles.shadowOffsetX || "0px",
+      offsetY: styles.shadowOffsetY || "0px",
+      blur: styles.shadowBlurRadius || "0px",
+      color: color,
+    });
+
+    updateElementStyle(element.id, {
+      boxShadow: newShadow,
+      shadowColor: color,
+    });
+  };
+
+  // ============================================================================
+  // OPACITY HANDLER
+  // ============================================================================
+
+  /**
+   * Handle opacity change from slider
+   * Converts 0-100 slider value to 0-1 opacity value
+   * @param {array} value - Slider value array [0-100]
+   */
+  const handleOpacityChange = (value) => {
+    const opacity = value / 100; // Convert 0-100 to 0-1
+    updateElementStyle(element.id, {
+      opacity: opacity,
+    });
+  };
+
+  // ============================================================================
+  // RENDER HELPERS
+  // ============================================================================
+
+  /**
+   * Render border radius controls for rectangle shape
+   * @returns {JSX} Border radius input group
+   */
   const renderBorderRadiusControls = () => (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -63,9 +217,9 @@ const ShapePropertiesPanel = ({
           <Label className="text-xs text-gray-600">Top-Left</Label>
           <Input
             type="number"
-            value={parseInt(styles.borderTopLeftRadius) || 0}
+            value={parsePx(styles.borderTopLeftRadius)}
             onChange={(e) =>
-              handleStyleChange("borderTopLeftRadius", `${e.target.value}px`)
+              handleStyleChange("borderTopLeftRadius", toPx(e.target.value))
             }
             className="h-8 text-xs"
             min="0"
@@ -76,9 +230,9 @@ const ShapePropertiesPanel = ({
           <Label className="text-xs text-gray-600">Top-Right</Label>
           <Input
             type="number"
-            value={parseInt(styles.borderTopRightRadius) || 0}
+            value={parsePx(styles.borderTopRightRadius)}
             onChange={(e) =>
-              handleStyleChange("borderTopRightRadius", `${e.target.value}px`)
+              handleStyleChange("borderTopRightRadius", toPx(e.target.value))
             }
             className="h-8 text-xs"
             min="0"
@@ -91,9 +245,9 @@ const ShapePropertiesPanel = ({
           <Label className="text-xs text-gray-600">Bottom-Left</Label>
           <Input
             type="number"
-            value={parseInt(styles.borderBottomLeftRadius) || 0}
+            value={parsePx(styles.borderBottomLeftRadius)}
             onChange={(e) =>
-              handleStyleChange("borderBottomLeftRadius", `${e.target.value}px`)
+              handleStyleChange("borderBottomLeftRadius", toPx(e.target.value))
             }
             className="h-8 text-xs"
             min="0"
@@ -104,12 +258,9 @@ const ShapePropertiesPanel = ({
           <Label className="text-xs text-gray-600">Bottom-Right</Label>
           <Input
             type="number"
-            value={parseInt(styles.borderBottomRightRadius) || 0}
+            value={parsePx(styles.borderBottomRightRadius)}
             onChange={(e) =>
-              handleStyleChange(
-                "borderBottomRightRadius",
-                `${e.target.value}px`
-              )
+              handleStyleChange("borderBottomRightRadius", toPx(e.target.value))
             }
             className="h-8 text-xs"
             min="0"
@@ -120,9 +271,13 @@ const ShapePropertiesPanel = ({
     </div>
   );
 
+  // ============================================================================
+  // MAIN RENDER
+  // ============================================================================
+
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* ===== HEADER ===== */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-cyan-100 rounded-md">
@@ -149,7 +304,7 @@ const ShapePropertiesPanel = ({
 
       <Separator />
 
-      {/* Tabs */}
+      {/* ===== TABS ===== */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 h-8">
           <TabsTrigger value="shape" className="text-xs">
@@ -166,8 +321,9 @@ const ShapePropertiesPanel = ({
           </TabsTrigger>
         </TabsList>
 
-        {/* Shape Tab */}
+        {/* ===== SHAPE TAB ===== */}
         <TabsContent value="shape" className="space-y-4 mt-4">
+          {/* Shape Type Card */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -200,7 +356,7 @@ const ShapePropertiesPanel = ({
             </CardContent>
           </Card>
 
-          {/* Corner Radius for Rectangle Only */}
+          {/* Corner Radius Card - Only for Rectangle */}
           {currentShape === "rectangle" && (
             <Card>
               <CardHeader className="pb-2">
@@ -214,9 +370,9 @@ const ShapePropertiesPanel = ({
           )}
         </TabsContent>
 
-        {/* Style Tab */}
+        {/* ===== STYLE TAB ===== */}
         <TabsContent value="style" className="space-y-4 mt-4">
-          {/* Fill Color */}
+          {/* Fill Card */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -225,6 +381,7 @@ const ShapePropertiesPanel = ({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/* Fill Type Selector */}
               <div className="space-y-2">
                 <Label className="text-xs text-gray-600">Fill Type</Label>
                 <Select
@@ -331,7 +488,7 @@ const ShapePropertiesPanel = ({
                     </Label>
                     <Input
                       type="number"
-                      value={parseInt(styles.gradientDirection) || 0}
+                      value={parsePx(styles.gradientDirection) || 0}
                       onChange={(e) =>
                         handleGradientChange(
                           "gradientDirection",
@@ -410,7 +567,7 @@ const ShapePropertiesPanel = ({
             </CardContent>
           </Card>
 
-          {/* Border */}
+          {/* Border Card */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -424,9 +581,9 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Width</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.borderWidth) || 0}
+                    value={parsePx(styles.borderWidth)}
                     onChange={(e) =>
-                      handleStyleChange("borderWidth", `${e.target.value}px`)
+                      handleStyleChange("borderWidth", toPx(e.target.value))
                     }
                     className="h-8 text-xs"
                     min="0"
@@ -479,9 +636,9 @@ const ShapePropertiesPanel = ({
           </Card>
         </TabsContent>
 
-        {/* Effects Tab */}
+        {/* ===== EFFECTS TAB ===== */}
         <TabsContent value="effects" className="space-y-4 mt-4">
-          {/* Opacity */}
+          {/* Opacity Card */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Opacity</CardTitle>
@@ -489,10 +646,8 @@ const ShapePropertiesPanel = ({
             <CardContent>
               <div className="space-y-2">
                 <Slider
-                  value={[parseFloat(styles.opacity || 1) * 100]}
-                  onValueChange={(value) =>
-                    handleStyleChange("opacity", (value[0] / 100).toString())
-                  }
+                  value={[(styles.opacity || 1) * 100]}
+                  onValueChange={handleOpacityChange}
                   max={100}
                   min={0}
                   step={1}
@@ -501,7 +656,7 @@ const ShapePropertiesPanel = ({
                 <div className="flex justify-between text-xs text-gray-500">
                   <span>0%</span>
                   <Badge variant="secondary" className="text-xs">
-                    {Math.round(parseFloat(styles.opacity || 1) * 100)}%
+                    {Math.round((styles.opacity || 1) * 100)}%
                   </Badge>
                   <span>100%</span>
                 </div>
@@ -509,7 +664,7 @@ const ShapePropertiesPanel = ({
             </CardContent>
           </Card>
 
-          {/* Shadow */}
+          {/* Shadow Card */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Box Shadow</CardTitle>
@@ -520,16 +675,8 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">X Offset</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.shadowOffsetX) || 0}
-                    onChange={(e) => {
-                      const shadow = `${e.target.value}px ${
-                        styles.shadowOffsetY || "0px"
-                      } ${styles.shadowBlurRadius || "0px"} ${
-                        styles.shadowColor || "#000000"
-                      }`;
-                      handleStyleChange("boxShadow", shadow);
-                      handleStyleChange("shadowOffsetX", `${e.target.value}px`);
-                    }}
+                    value={parsePx(styles.shadowOffsetX)}
+                    onChange={(e) => handleShadowOffsetXChange(e.target.value)}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -537,16 +684,8 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Y Offset</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.shadowOffsetY) || 0}
-                    onChange={(e) => {
-                      const shadow = `${styles.shadowOffsetX || "0px"} ${
-                        e.target.value
-                      }px ${styles.shadowBlurRadius || "0px"} ${
-                        styles.shadowColor || "#000000"
-                      }`;
-                      handleStyleChange("boxShadow", shadow);
-                      handleStyleChange("shadowOffsetY", `${e.target.value}px`);
-                    }}
+                    value={parsePx(styles.shadowOffsetY)}
+                    onChange={(e) => handleShadowOffsetYChange(e.target.value)}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -557,41 +696,32 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Blur</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.shadowBlurRadius) || 0}
-                    onChange={(e) => {
-                      const shadow = `${styles.shadowOffsetX || "0px"} ${
-                        styles.shadowOffsetY || "0px"
-                      } ${e.target.value}px ${styles.shadowColor || "#000000"}`;
-                      handleStyleChange("boxShadow", shadow);
-                      handleStyleChange(
-                        "shadowBlurRadius",
-                        `${e.target.value}px`
-                      );
-                    }}
+                    value={parsePx(styles.shadowBlurRadius)}
+                    onChange={(e) => handleShadowBlurChange(e.target.value)}
                     className="h-8 text-xs"
                     min="0"
                   />
                 </div>
                 <div>
-                  <Label className="text-xs text-gray-600">Shadow Color</Label>
+                  <Label className="text-xs text-gray-600">Color</Label>
                   <Input
                     type="color"
                     value={styles.shadowColor || "#000000"}
-                    onChange={(e) => {
-                      const shadow = `${styles.shadowOffsetX || "0px"} ${
-                        styles.shadowOffsetY || "0px"
-                      } ${styles.shadowBlurRadius || "0px"} ${e.target.value}`;
-                      handleStyleChange("boxShadow", shadow);
-                      handleStyleChange("shadowColor", e.target.value);
-                    }}
+                    onChange={(e) => handleShadowColorChange(e.target.value)}
                     className="h-8 p-1 rounded cursor-pointer"
                   />
                 </div>
               </div>
+
+              <div className="p-2 bg-gray-100 rounded-lg border border-gray-300">
+                <p className="text-xs font-mono text-gray-600 break-all">
+                  {styles.boxShadow || "none"}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Rotation */}
+          {/* Rotation Card */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -603,11 +733,10 @@ const ShapePropertiesPanel = ({
               <div className="space-y-2">
                 <Input
                   type="number"
-                  value={parseInt(styles.rotation) || 0}
+                  value={parsePx(styles.rotation)}
                   onChange={(e) => {
-                    const rotation = `${e.target.value}deg`;
-                    handleStyleChange("rotation", rotation);
-                    handleStyleChange("transform", `rotate(${rotation})`);
+                    const degValue = `${e.target.value}deg`; // ✅ Store as "deg" not "px"
+                    updateElementStyle(element.id, { rotation: degValue });
                   }}
                   className="h-8 text-xs"
                   min="0"
@@ -616,7 +745,7 @@ const ShapePropertiesPanel = ({
                 <div className="flex justify-between text-xs text-gray-500">
                   <span>0°</span>
                   <Badge variant="secondary" className="text-xs">
-                    {parseInt(styles.rotation) || 0}°
+                    {parsePx(styles.rotation)}°
                   </Badge>
                   <span>360°</span>
                 </div>
@@ -625,9 +754,9 @@ const ShapePropertiesPanel = ({
           </Card>
         </TabsContent>
 
-        {/* Layout Tab */}
+        {/* ===== LAYOUT TAB ===== */}
         <TabsContent value="layout" className="space-y-4 mt-4">
-          {/* Position */}
+          {/* Position & Size Card */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -641,10 +770,10 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Width</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.width) || 200}
-                    onChange={(e) =>
-                      handleStyleChange("width", `${e.target.value}px`)
-                    }
+                    value={parsePx(styles.width) || 200}
+                    onChange={(e) => {
+                      handleStyleChange("width", toPx(e.target.value));
+                    }}
                     className="h-8 text-xs"
                     min="10"
                   />
@@ -653,10 +782,10 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Height</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.height) || 200}
-                    onChange={(e) =>
-                      handleStyleChange("height", `${e.target.value}px`)
-                    }
+                    value={parsePx(styles.height) || 200}
+                    onChange={(e) => {
+                      handleStyleChange("height", toPx(e.target.value));
+                    }}
                     className="h-8 text-xs"
                     min="10"
                   />
@@ -665,7 +794,7 @@ const ShapePropertiesPanel = ({
             </CardContent>
           </Card>
 
-          {/* Margin */}
+          {/* Margin Card */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Margin</CardTitle>
@@ -676,10 +805,10 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Top</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.marginTop) || 0}
-                    onChange={(e) =>
-                      handleStyleChange("marginTop", `${e.target.value}px`)
-                    }
+                    value={parsePx(styles.marginTop)}
+                    onChange={(e) => {
+                      handleStyleChange("marginTop", toPx(e.target.value));
+                    }}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -687,10 +816,10 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Right</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.marginRight) || 0}
-                    onChange={(e) =>
-                      handleStyleChange("marginRight", `${e.target.value}px`)
-                    }
+                    value={parsePx(styles.marginRight)}
+                    onChange={(e) => {
+                      handleStyleChange("marginRight", toPx(e.target.value));
+                    }}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -698,10 +827,10 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Bottom</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.marginBottom) || 0}
-                    onChange={(e) =>
-                      handleStyleChange("marginBottom", `${e.target.value}px`)
-                    }
+                    value={parsePx(styles.marginBottom)}
+                    onChange={(e) => {
+                      handleStyleChange("marginBottom", toPx(e.target.value));
+                    }}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -709,10 +838,10 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Left</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.marginLeft) || 0}
-                    onChange={(e) =>
-                      handleStyleChange("marginLeft", `${e.target.value}px`)
-                    }
+                    value={parsePx(styles.marginLeft)}
+                    onChange={(e) => {
+                      handleStyleChange("marginLeft", toPx(e.target.value));
+                    }}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -720,7 +849,7 @@ const ShapePropertiesPanel = ({
             </CardContent>
           </Card>
 
-          {/* Padding */}
+          {/* Padding Card */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Padding</CardTitle>
@@ -731,10 +860,10 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Top</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.paddingTop) || 0}
-                    onChange={(e) =>
-                      handleStyleChange("paddingTop", `${e.target.value}px`)
-                    }
+                    value={parsePx(styles.paddingTop)}
+                    onChange={(e) => {
+                      handleStyleChange("paddingTop", toPx(e.target.value));
+                    }}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -742,10 +871,10 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Right</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.paddingRight) || 0}
-                    onChange={(e) =>
-                      handleStyleChange("paddingRight", `${e.target.value}px`)
-                    }
+                    value={parsePx(styles.paddingRight)}
+                    onChange={(e) => {
+                      handleStyleChange("paddingRight", toPx(e.target.value));
+                    }}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -753,10 +882,10 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Bottom</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.paddingBottom) || 0}
-                    onChange={(e) =>
-                      handleStyleChange("paddingBottom", `${e.target.value}px`)
-                    }
+                    value={parsePx(styles.paddingBottom)}
+                    onChange={(e) => {
+                      handleStyleChange("paddingBottom", toPx(e.target.value));
+                    }}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -764,10 +893,10 @@ const ShapePropertiesPanel = ({
                   <Label className="text-xs text-gray-600">Left</Label>
                   <Input
                     type="number"
-                    value={parseInt(styles.paddingLeft) || 0}
-                    onChange={(e) =>
-                      handleStyleChange("paddingLeft", `${e.target.value}px`)
-                    }
+                    value={parsePx(styles.paddingLeft)}
+                    onChange={(e) => {
+                      handleStyleChange("paddingLeft", toPx(e.target.value));
+                    }}
                     className="h-8 text-xs"
                   />
                 </div>

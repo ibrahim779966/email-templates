@@ -110,10 +110,10 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
-
-
-* { @apply outline-ring/50; /* keep outline if you need focus rings */ border: none; /* remove global borders */ }
+* {
+  @apply outline-ring/50; /* keep outline if you need focus rings */
+  border: none; /* remove global borders */
+}
 
 /* Import Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Arial&family=Times+New+Roman&family=Helvetica&family=Roboto&family=Open+Sans&family=Lato&family=Montserrat&family=Calibri&family=Georgia&family=Verdana&family=Garamond&family=Courier+New&family=Tahoma&family=Playfair+Display&family=Merriweather&family=Libre+Baskerville&family=Futura&family=Gill+Sans&family=Oswald&family=Poppins&family=Raleway&family=Inter&family=Avenir&family=Palatino&family=Bodoni&family=Franklin+Gothic&family=Didot&display=swap');
-
+@import url("https://fonts.googleapis.com/css2?family=Arial&family=Times+New+Roman&family=Helvetica&family=Roboto&family=Open+Sans&family=Lato&family=Montserrat&family=Calibri&family=Georgia&family=Verdana&family=Garamond&family=Courier+New&family=Tahoma&family=Playfair+Display&family=Merriweather&family=Libre+Baskerville&family=Futura&family=Gill+Sans&family=Oswald&family=Poppins&family=Raleway&family=Inter&family=Avenir&family=Palatino&family=Bodoni&family=Franklin+Gothic&family=Didot&display=swap");

@@ -1,3 +1,4 @@
+// ElementRenderer.jsx
 import React, { useRef, useState, useEffect } from "react";
 import {
   FaFacebook,
@@ -1202,6 +1203,10 @@ export default function ElementRenderer({
                 position: "relative",
                 width: `${shapeWidth}px`,
                 height: `${shapeHeight}px`,
+                transform: styles?.rotation
+                  ? `rotate(${styles.rotation})`
+                  : "none", // ✅ ADD ROTATION HERE
+                transformOrigin: "center center", // ✅ ADD THIS
                 boxSizing: "border-box",
                 display: "flex",
                 alignItems:
@@ -1244,6 +1249,7 @@ export default function ElementRenderer({
                           styles.borderStyle || "solid"
                         } ${styles.borderColor}`
                       : "none",
+
                   boxShadow: styles?.boxShadow || "none",
                   opacity: styles?.opacity || "1",
                   transform: styles?.transform || "none",
@@ -1270,6 +1276,7 @@ export default function ElementRenderer({
           </EditableWrapper>
         );
       }
+
       case "text":
         return (
           <EditableWrapper

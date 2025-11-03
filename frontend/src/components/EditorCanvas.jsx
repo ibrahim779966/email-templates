@@ -1,3 +1,4 @@
+// EditorCanvas.jsx
 import React, { forwardRef } from "react";
 import ElementRenderer from "./ElementRenderer";
 import { Mail } from "lucide-react";
@@ -308,21 +309,19 @@ const EditorCanvas = forwardRef(
     return (
       <div
         className="flex-1 overflow-y-auto p-6 "
-      style={{
-    backgroundColor: globalSettings.backgroundColor || "#ffffff",
-    backgroundImage:
-      "radial-gradient(circle, rgba(255,0,200,0.4) 2px, transparent 1px), radial-gradient(circle, rgba(160,0,255,0.4) 1px, transparent 1px)",
-    backgroundSize: "20px 20px, 25px 25px",
-    backgroundPosition: "0 0, 9px 9px",
+        style={{
+          backgroundColor: globalSettings.backgroundColor || "#ffffff",
+          backgroundImage:
+            "radial-gradient(circle, rgba(255,0,200,0.4) 2px, transparent 1px)",
+          backgroundSize: "20px 20px, 25px 25px",
+          backgroundPosition: "0 0, 9px 9px",
 
-  //  // ✅ Only center the canvas in PREVIEW
-  // display: activeView === "preview" ? "flex" : "block",
-  // justifyContent: activeView === "preview" ? "center" : "flex-start",
-  }}
-
+          //  // ✅ Only center the canvas in PREVIEW
+          // display: activeView === "preview" ? "flex" : "block",
+          // justifyContent: activeView === "preview" ? "center" : "flex-start",
+        }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
-        
       >
         <div
           ref={ref}
@@ -335,8 +334,8 @@ const EditorCanvas = forwardRef(
             minHeight: globalSettings.minHeight || "800px",
             backgroundColor: globalSettings.newsletterColor,
             padding: activeView === "preview" ? "0" : "20px",
-           margin: activeView === "preview" ? "auto" : "auto",
-        
+            margin: activeView === "preview" ? "auto" : "auto",
+
             position: "relative",
             fontFamily: globalSettings.fontFamily || "Arial, sans-serif", // Apply global font
             overflow: "hidden", // ✅ prevent visual overflow outside canvas
@@ -397,7 +396,6 @@ const EditorCanvas = forwardRef(
             </div>
           )}
         </div>
-        
       </div>
     );
   }
