@@ -1,26 +1,30 @@
 /**
- * Environment-specific configurations
+ * Environment-specific configurations - UPDATED FOR AZURE
+ * 
+ * REPLACE YOUR EXISTING environment.js WITH THIS FILE
  */
 
 const environments = {
   development: {
     apiBaseUrl: "http://localhost:3000/api/v1",
-    cloudinaryCloudName: "dhlex64es",
-    cloudinaryUploadPreset: "newsletter",
+    // REMOVED: Cloudinary configuration
+    // ADDED: Azure configuration
+    azureStorageAccount: import.meta.env.REACT_APP_AZURE_STORAGE_ACCOUNT || "",
+    azureContainerName: import.meta.env.REACT_APP_AZURE_CONTAINER_NAME || "templates",
     enableLogging: true,
     enableMockData: false,
   },
   staging: {
     apiBaseUrl: "https://staging-api.yourdomain.com/api/v1",
-    cloudinaryCloudName: "dhlex64es",
-    cloudinaryUploadPreset: "newsletter",
+    azureStorageAccount: import.meta.env.REACT_APP_AZURE_STORAGE_ACCOUNT || "",
+    azureContainerName: import.meta.env.REACT_APP_AZURE_CONTAINER_NAME || "templates",
     enableLogging: true,
     enableMockData: false,
   },
   production: {
     apiBaseUrl: "https://api.yourdomain.com/api/v1",
-    cloudinaryCloudName: "dhlex64es",
-    cloudinaryUploadPreset: "newsletter",
+    azureStorageAccount: import.meta.env.REACT_APP_AZURE_STORAGE_ACCOUNT || "",
+    azureContainerName: import.meta.env.REACT_APP_AZURE_CONTAINER_NAME || "templates",
     enableLogging: false,
     enableMockData: false,
   },

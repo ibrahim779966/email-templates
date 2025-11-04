@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { templateService } from "../../api/services/templateService";
-import { cloudinaryService } from "../../api/services/cloudinaryService";
+import azureBlobService from "../../api/services/azureBlobService"; // ✅ CHANGED
+import htmlTemplateGenerator from "../../api/services/htmlTemplateGenerator"; // ✅ NEW
 import { getWorkId } from "../../api/utils/storageHelper";
 
 // ============================================================================
@@ -9,6 +10,7 @@ import { getWorkId } from "../../api/utils/storageHelper";
 
 /**
  * Save or update the current newsletter
+ * ✅ UPDATED: Now generates HTML and uploads to Azure
  */
 export const saveNewsletter = createAsyncThunk(
   "editor/saveNewsletter",
@@ -18,99 +20,156 @@ export const saveNewsletter = createAsyncThunk(
       const { elements, globalSettings, newsletterName, currentTemplateId } =
         state.editor;
 
-      // Generate thumbnail
+      const workId = getWorkId();
+
+      // Step 1: Generate thumbnail
       let thumbnailUrl = null;
+      let thumbnailBlobName = null;
       if (generateThumbnail) {
         const thumbnailDataUrl = await generateThumbnail();
         if (thumbnailDataUrl) {
           const blob = await fetch(thumbnailDataUrl).then((r) => r.blob());
-          const thumbData = await cloudinaryService.uploadImage(blob);
+          const thumbBlobName = `work_${workId}/thumbnails/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.png`;
+          
+          const thumbData = await azureBlobService.uploadImage(blob, thumbBlobName, {
+            folder: `work_${workId}/thumbnails`,
+            container: "templates",
+          });
+          
           thumbnailUrl = thumbData.secure_url;
+          thumbnailBlobName = thumbData.blob_name;
         }
       }
 
-      // Upload template data to Cloudinary
+      // Step 2: Prepare template data
       const templateData = {
         name: newsletterName || "Untitled",
         elements,
         globalSettings,
-        workId: getWorkId(),
+        workId,
         createdAt: currentTemplateId ? undefined : new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      const publicId = `newsletter-${Date.now()}`;
-      const cloudinaryData = await cloudinaryService.uploadRawData(
+      // Step 3: Generate HTML for email campaigns ✅ NEW
+      const htmlResult = htmlTemplateGenerator.generateEmailHTML(templateData);
+      
+      if (!htmlResult.success) {
+        throw new Error("Failed to generate HTML template");
+      }
+
+      // Step 4: Upload JSON data to Azure ✅ CHANGED
+      const jsonBlobName = `work_${workId}/templates/${Date.now()}_${Math.random().toString(36).substr(2, 9)}_data.json`;
+      
+      const jsonData = await azureBlobService.uploadRawData(
         templateData,
-        publicId
+        jsonBlobName,
+        {
+          folder: `work_${workId}/templates`,
+          container: "templates",
+        }
       );
 
-      // Create or update in database
+      // Step 5: Upload HTML file to Azure ✅ NEW
+      const htmlBlobName = `work_${workId}/templates/${Date.now()}_${Math.random().toString(36).substr(2, 9)}_email.html`;
+      
+      const htmlData = await azureBlobService.uploadRawData(
+        htmlResult.html,
+        htmlBlobName,
+        {
+          folder: `work_${workId}/templates`,
+          container: "templates",
+          contentType: "text/html",
+        }
+      );
+
+      // Step 6: Create or update in database ✅ CHANGED
       let response;
       if (currentTemplateId) {
+        // UPDATE existing template
         const updates = {
           name: newsletterName || "Untitled",
-          cloudinaryUrl: cloudinaryData.secure_url,
+          dataUrl: jsonData.secure_url,        // ✅ CHANGED from cloudinaryUrl
+          htmlUrl: htmlData.secure_url,        // ✅ NEW
+          dataBlobName: jsonData.blob_name,    // ✅ NEW
+          htmlBlobName: htmlData.blob_name,    // ✅ NEW
         };
+        
         if (thumbnailUrl) {
           updates.previewImageUrl = thumbnailUrl;
+          updates.thumbnailBlobName = thumbnailBlobName; // ✅ NEW
         }
+        
         response = await templateService.updateTemplate(
           currentTemplateId,
           updates
         );
       } else {
+        // CREATE new template
         response = await templateService.createTemplate({
           name: newsletterName || "Untitled",
-          cloudinaryUrl: cloudinaryData.secure_url,
+          dataUrl: jsonData.secure_url,        // ✅ CHANGED from cloudinaryUrl
+          htmlUrl: htmlData.secure_url,        // ✅ NEW
+          dataBlobName: jsonData.blob_name,    // ✅ NEW
+          htmlBlobName: htmlData.blob_name,    // ✅ NEW
           previewImageUrl: thumbnailUrl,
+          thumbnailBlobName: thumbnailBlobName, // ✅ NEW
         });
       }
 
+      console.log("✓ Template saved successfully:", response);
       return response.data || response;
+      
     } catch (error) {
-      return rejectWithValue(error);
+      console.error("✗ Error saving template:", error);
+      return rejectWithValue({
+        message: error.message || "Failed to save newsletter",
+        code: error.code,
+        status: error.status,
+      });
     }
   }
 );
 
 /**
  * Load a template into the editor
+ * ✅ UPDATED: Now uses Azure Blob Storage
  */
 export const loadTemplateIntoEditor = createAsyncThunk(
   "editor/loadTemplate",
-  async ({ templateId, cloudinaryUrl }, { rejectWithValue }) => {
+  async ({ templateId, dataUrl }, { rejectWithValue }) => {
     try {
       let templateData;
 
-      if (cloudinaryUrl) {
-        templateData = await cloudinaryService.fetchCloudinaryData(
-          cloudinaryUrl
-        );
+      if (dataUrl) {
+        // Load directly from Azure URL ✅ CHANGED
+        templateData = await azureBlobService.fetchAzureData(dataUrl);
       } else if (templateId) {
+        // Fetch template metadata from database
         const template = await templateService.getTemplateById(templateId);
 
-        // ADD THIS CHECK:
-        if (!template || !template.cloudinaryUrl) {
-          throw new Error("Template not found or missing Cloudinary URL");
+        // Check for dataUrl ✅ CHANGED from cloudinaryUrl
+        if (!template || !template.dataUrl) {
+          throw new Error("Template not found or missing data URL");
         }
 
-        templateData = await cloudinaryService.fetchCloudinaryData(
-          template.cloudinaryUrl
-        );
+        // Load template data from Azure ✅ CHANGED
+        templateData = await azureBlobService.fetchAzureData(template.dataUrl);
         templateData._id = template._id || template.id;
       } else {
-        throw new Error("Either templateId or cloudinaryUrl is required");
+        throw new Error("Either templateId or dataUrl is required");
       }
 
-      // ADD THIS VALIDATION:
+      // Validate template data
       if (!templateData || !templateData.elements) {
         throw new Error("Invalid template data - missing elements");
       }
 
+      console.log("✓ Template loaded successfully");
       return templateData;
+      
     } catch (error) {
-      console.error("Error loading template:", error);
+      console.error("✗ Error loading template:", error);
       return rejectWithValue({
         message: error.message || "Failed to load template",
         code: error.code,
@@ -324,7 +383,7 @@ const editorSlice = createSlice({
 
         // Update template ID if it was a new template
         if (!state.currentTemplateId && action.payload) {
-          state.currentTemplateId = action.payload.id;
+          state.currentTemplateId = action.payload._id || action.payload.id;
         }
       })
       .addCase(saveNewsletter.rejected, (state, action) => {
@@ -394,3 +453,21 @@ export const selectIsDirty = (state) => state.editor.isDirty;
 export const selectSaving = (state) => state.editor.saving;
 
 export default editorSlice.reducer;
+
+
+
+// ---
+
+// ## 🔧 **What Happens When You Save Now**
+// ```
+// User Saves Template
+//        ↓
+// 1. Generate Thumbnail → Upload to Azure
+// 2. Generate HTML from template data
+// 3. Upload JSON data → Azure Blob Storage
+// 4. Upload HTML file → Azure Blob Storage
+// 5. Save metadata to Database:
+//    - dataUrl (JSON URL for editing)
+//    - htmlUrl (HTML URL for campaigns) ← NEW!
+//    - dataBlobName (for deletion)
+//    - htmlBlobName (for deletion)

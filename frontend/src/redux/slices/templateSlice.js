@@ -1,13 +1,14 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { templateService } from "../../api/services/templateService";
-import { cloudinaryService } from "../../api/services/cloudinaryService";
+import azureBlobService from "../../api/services/azureBlobService";
+import { getWorkId } from "../../api/utils/storageHelper";
 
 // ============================================================================
-// ASYNC THUNKS - Using API Services
+// ASYNC THUNKS
 // ============================================================================
 
 /**
- * Fetch all templates for the current work
+ * Fetch all templates for current work
  */
 export const fetchTemplates = createAsyncThunk(
   "template/fetchTemplates",
@@ -22,7 +23,7 @@ export const fetchTemplates = createAsyncThunk(
 );
 
 /**
- * Fetch a single template by ID
+ * Fetch template by ID
  */
 export const fetchTemplateById = createAsyncThunk(
   "template/fetchTemplateById",
@@ -37,40 +38,7 @@ export const fetchTemplateById = createAsyncThunk(
 );
 
 /**
- * Create a new template
- */
-export const createTemplate = createAsyncThunk(
-  "template/createTemplate",
-  async (templateData, { rejectWithValue }) => {
-    try {
-      const response = await templateService.createTemplate(templateData);
-      return response.data || response;
-    } catch (error) {
-      return rejectWithValue(error);
-    }
-  }
-);
-
-/**
- * Update an existing template
- */
-export const updateTemplate = createAsyncThunk(
-  "template/updateTemplate",
-  async ({ templateId, updates }, { rejectWithValue }) => {
-    try {
-      const response = await templateService.updateTemplate(
-        templateId,
-        updates
-      );
-      return response.data || response;
-    } catch (error) {
-      return rejectWithValue(error);
-    }
-  }
-);
-
-/**
- * Delete a template
+ * Delete template
  */
 export const deleteTemplate = createAsyncThunk(
   "template/deleteTemplate",
@@ -85,32 +53,60 @@ export const deleteTemplate = createAsyncThunk(
 );
 
 /**
- * Duplicate a template
+ * Duplicate template
  */
 export const duplicateTemplate = createAsyncThunk(
   "template/duplicateTemplate",
   async ({ template, newName }, { rejectWithValue }) => {
     try {
-      // Fetch template data from Cloudinary
-      const templateData = await cloudinaryService.fetchCloudinaryData(
-        template.cloudinaryUrl
+      // Fetch template data from Azure
+      const templateData = await azureBlobService.fetchAzureData(template.dataUrl);
+      
+      // Update name
+      const duplicatedData = {
+        ...templateData,
+        name: newName || `${template.name} (Copy)`,
+      };
+
+      const workId = getWorkId();
+      
+      // Upload JSON to Azure
+      const jsonBlobName = `work_${workId}/templates/${Date.now()}_${Math.random().toString(36).substr(2, 9)}_data.json`;
+      const jsonData = await azureBlobService.uploadRawData(
+        duplicatedData,
+        jsonBlobName,
+        {
+          folder: `work_${workId}/templates`,
+          container: "templates",
+        }
       );
 
-      // Upload duplicated data with new timestamp
-      const publicId = `newsletter-copy-${Date.now()}`;
-      const cloudinaryData = await cloudinaryService.uploadRawData(
-        templateData,
-        publicId
+      // Generate and upload HTML
+      const htmlTemplateGenerator = (await import("../../api/services/htmlTemplateGenerator")).default;
+      const htmlResult = htmlTemplateGenerator.generateEmailHTML(duplicatedData);
+      
+      const htmlBlobName = `work_${workId}/templates/${Date.now()}_${Math.random().toString(36).substr(2, 9)}_email.html`;
+      const htmlData = await azureBlobService.uploadRawData(
+        htmlResult.html,
+        htmlBlobName,
+        {
+          folder: `work_${workId}/templates`,
+          container: "templates",
+          contentType: "text/html",
+        }
       );
 
       // Create new template in database
-      const response = await templateService.createTemplate({
-        name: newName,
-        cloudinaryUrl: cloudinaryData.secure_url,
+      const newTemplate = await templateService.createTemplate({
+        name: duplicatedData.name,
+        dataUrl: jsonData.secure_url,
+        htmlUrl: htmlData.secure_url,
+        dataBlobName: jsonData.blob_name,
+        htmlBlobName: htmlData.blob_name,
         previewImageUrl: template.previewImageUrl,
       });
 
-      return response.data || response;
+      return newTemplate.data || newTemplate;
     } catch (error) {
       return rejectWithValue(error);
     }
@@ -118,13 +114,13 @@ export const duplicateTemplate = createAsyncThunk(
 );
 
 /**
- * Load template data from Cloudinary
+ * Load template data from Azure
  */
 export const loadTemplateData = createAsyncThunk(
   "template/loadTemplateData",
-  async (cloudinaryUrl, { rejectWithValue }) => {
+  async (dataUrl, { rejectWithValue }) => {
     try {
-      const data = await cloudinaryService.fetchCloudinaryData(cloudinaryUrl);
+      const data = await azureBlobService.fetchAzureData(dataUrl);
       return data;
     } catch (error) {
       return rejectWithValue(error);
@@ -147,7 +143,7 @@ const initialState = {
   currentTemplateLoading: false,
   currentTemplateError: null,
 
-  // Template data (from Cloudinary)
+  // Template data
   templateData: null,
   templateDataLoading: false,
   templateDataError: null,
@@ -265,61 +261,6 @@ const templateSlice = createSlice({
       })
 
       // ========================================================================
-      // CREATE TEMPLATE
-      // ========================================================================
-      .addCase(createTemplate.pending, (state) => {
-        state.creating = true;
-        state.createError = null;
-      })
-      .addCase(createTemplate.fulfilled, (state, action) => {
-        state.creating = false;
-        state.templates.unshift(action.payload);
-        state.filteredTemplates.unshift(action.payload);
-      })
-      .addCase(createTemplate.rejected, (state, action) => {
-        state.creating = false;
-        state.createError =
-          action.payload?.message || "Failed to create template";
-      })
-
-      // ========================================================================
-      // UPDATE TEMPLATE
-      // ========================================================================
-      .addCase(updateTemplate.pending, (state) => {
-        state.updating = true;
-        state.updateError = null;
-      })
-      .addCase(updateTemplate.fulfilled, (state, action) => {
-        state.updating = false;
-
-        // Update in templates list
-        const index = state.templates.findIndex(
-          (t) => t._id === action.payload.id
-        );
-        if (index !== -1) {
-          state.templates[index] = action.payload;
-        }
-
-        // Update in filtered list
-        const filteredIndex = state.filteredTemplates.findIndex(
-          (t) => t._id === action.payload._id
-        );
-        if (filteredIndex !== -1) {
-          state.filteredTemplates[filteredIndex] = action.payload;
-        }
-
-        // Update current template if it's the same
-        if (state.currentTemplate?._id === action.payload._id) {
-          state.currentTemplate = action.payload;
-        }
-      })
-      .addCase(updateTemplate.rejected, (state, action) => {
-        state.updating = false;
-        state.updateError =
-          action.payload?.message || "Failed to update template";
-      })
-
-      // ========================================================================
       // DELETE TEMPLATE
       // ========================================================================
       .addCase(deleteTemplate.pending, (state) => {
@@ -407,4 +348,5 @@ export const selectTemplatesLoading = (state) =>
 export const selectCurrentTemplate = (state) => state.template.currentTemplate;
 export const selectTemplateData = (state) => state.template.templateData;
 export const selectSearchQuery = (state) => state.template.searchQuery;
+
 export default templateSlice.reducer;

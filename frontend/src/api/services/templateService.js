@@ -1,6 +1,7 @@
 /**
  * Template Service
  * All template-related API calls with proper error handling
+ * ✅ UPDATED: Now uses Azure Blob Storage fields instead of Cloudinary
  */
 
 import request, { apiRequest } from "../xhr";
@@ -10,6 +11,7 @@ import { buildUrl, parseApiError } from "../utils/requestHelper";
 
 /**
  * Get all templates for the current work ID
+ * ✅ NO CHANGES - Database query unchanged
  */
 const getTemplatesByWorkId = async () => {
   try {
@@ -30,6 +32,7 @@ const getTemplatesByWorkId = async () => {
 
 /**
  * Get a single template by ID
+ * ✅ CHANGED: Now checks for dataUrl instead of cloudinaryUrl
  */
 const getTemplateById = async (templateId) => {
   try {
@@ -40,8 +43,9 @@ const getTemplateById = async (templateId) => {
     // Handle nested response structure
     const template = response.data?.data || response.data || response;
 
-    if (!template || !template.cloudinaryUrl) {
-      throw new Error("Template not found or missing cloudinaryUrl");
+    // ✅ CHANGED: Check for dataUrl instead of cloudinaryUrl
+    if (!template || !template.dataUrl) {
+      throw new Error("Template not found or missing dataUrl");
     }
 
     return template;
@@ -52,20 +56,27 @@ const getTemplateById = async (templateId) => {
 
 /**
  * Create a new template
+ * ✅ CHANGED: Now uses Azure fields (dataUrl, htmlUrl, blob names)
  */
 const createTemplate = async (templateData) => {
   try {
-    if (!templateData.name || !templateData.cloudinaryUrl) {
-      throw new Error("Template name and cloudinaryUrl are required");
+    // ✅ CHANGED: Validate Azure fields instead of cloudinaryUrl
+    if (!templateData.name || !templateData.dataUrl) {
+      throw new Error("Template name and dataUrl are required");
     }
 
     const workId = getWorkId();
 
+    // ✅ CHANGED: New payload structure with Azure fields
     const payload = {
       name: templateData.name,
-      cloudinaryUrl: templateData.cloudinaryUrl,
+      dataUrl: templateData.dataUrl,           // ✅ NEW: Azure JSON URL
+      htmlUrl: templateData.htmlUrl,           // ✅ NEW: Azure HTML URL
+      dataBlobName: templateData.dataBlobName, // ✅ NEW: Blob name for deletion
+      htmlBlobName: templateData.htmlBlobName, // ✅ NEW: Blob name for deletion
       workId: workId,
       previewImageUrl: templateData.previewImageUrl,
+      thumbnailBlobName: templateData.thumbnailBlobName, // ✅ NEW: Thumbnail blob name
     };
 
     const response = await apiRequest.post(apiUrls.templates.create, payload, {
@@ -82,6 +93,7 @@ const createTemplate = async (templateData) => {
 
 /**
  * Update an existing template
+ * ✅ NO CHANGES - Accepts any updates object
  */
 const updateTemplate = async (templateId, updates) => {
   try {
@@ -105,6 +117,7 @@ const updateTemplate = async (templateId, updates) => {
 
 /**
  * Delete a template
+ * ✅ NO CHANGES - Backend handles Azure blob deletion
  */
 const deleteTemplate = async (templateId) => {
   try {
@@ -128,6 +141,7 @@ const deleteTemplate = async (templateId) => {
 
 /**
  * Bulk delete templates
+ * ✅ NO CHANGES - Backend handles Azure blob deletion
  */
 const bulkDeleteTemplates = async (templateIds) => {
   try {
@@ -155,6 +169,7 @@ const bulkDeleteTemplates = async (templateIds) => {
 
 /**
  * Duplicate a template
+ * ✅ NO CHANGES - Backend handles duplication with Azure
  */
 const duplicateTemplate = async (templateId) => {
   try {

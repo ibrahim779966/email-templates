@@ -42,7 +42,7 @@ import {
 } from "../redux/slices/editorSlice";
 
 import { addNotification } from "../redux/slices/uiSlice";
-import { cloudinaryService } from "../api/services/cloudinaryService";
+import azureBlobService from "../api/services/azureBlobService";
 
 // Add LZ-String compression library dynamically
 if (typeof window !== "undefined" && !window.LZString) {
@@ -455,37 +455,38 @@ export default function EmailNewsletterEditor() {
 
   // Check for encoded data in the URL on initial load
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const templateUrl = urlParams.get("template");
-    const templateId = urlParams.get("templateId");
+  const urlParams = new URLSearchParams(window.location.search);
+  const templateUrl = urlParams.get("template");
+  const templateId = urlParams.get("templateId");
 
-    if (templateUrl) {
-      cloudinaryService
-        .fetchCloudinaryData(templateUrl)
-        .then((tpl) => {
-          dispatch(setElements(tpl.elements));
-          dispatch(setGlobalSettings(tpl.globalSettings));
-          dispatch(setNewsletterName(tpl.name || "Untitled Newsletter"));
-          dispatch(
-            addNotification({
-              type: "success",
-              message: "Loaded from shared template!",
-            })
-          );
-        })
-        .catch((err) => {
-          console.error("Error loading shared template:", err);
-          dispatch(
-            addNotification({
-              type: "error",
-              message: "Failed to load shared template.",
-            })
-          );
-        });
-    } else if (templateId) {
-      dispatch(loadTemplateIntoEditor({ templateId }));
-    }
-  }, [dispatch]);
+  if (templateUrl) {
+    azureBlobService
+      .fetchAzureData(templateUrl)
+      .then((tpl) => {
+        dispatch(setElements(tpl.elements));
+        dispatch(setGlobalSettings(tpl.globalSettings));
+        dispatch(setNewsletterName(tpl.name || "Untitled Newsletter"));
+        dispatch(
+          addNotification({
+            type: "success",
+            message: "Loaded from shared template!",
+          })
+        );
+      })
+      .catch((err) => {
+        console.error("Error loading shared template:", err);
+        dispatch(
+          addNotification({
+            type: "error",
+            message: "Failed to load shared template from Azure.",
+          })
+        );
+      });
+  } else if (templateId) {
+    dispatch(loadTemplateIntoEditor({ templateId }));
+  }
+}, [dispatch]);
+
 
   const location = useLocation();
   useEffect(() => {
@@ -809,25 +810,37 @@ export default function EmailNewsletterEditor() {
     dispatch(duplicateElementAction(id));
   };
 
-  const handleImageUpload = async (id, file) => {
-    if (!file || !file.type.startsWith("image")) return;
+ const handleImageUpload = async (id, file) => {
+  if (!file || !file.type.startsWith("image")) return;
 
-    try {
-      const result = await cloudinaryService.uploadImage(file);
-      if (result.secure_url) {
-        dispatch(
-          updateElementAction({ id, updates: { content: result.secure_url } })
-        );
-      }
-    } catch (error) {
+  try {
+    const workId = currentTemplateId || "default"; // Use current template ID or default
+    const result = await azureBlobService.uploadImage(file, null, {
+      folder: `work_${workId}/images`,
+      container: "templates",
+    });
+    
+    if (result.secure_url) {
+      dispatch(
+        updateElementAction({ id, updates: { content: result.secure_url } })
+      );
       dispatch(
         addNotification({
-          type: "error",
-          message: "Failed to upload image",
+          type: "success",
+          message: "Image uploaded successfully!",
         })
       );
     }
-  };
+  } catch (error) {
+    console.error("Image upload error:", error);
+    dispatch(
+      addNotification({
+        type: "error",
+        message: "Failed to upload image to Azure",
+      })
+    );
+  }
+};
 
   const handleDragStart = (e, id) => {
     const index = elements.findIndex((el) => el.id === id);
@@ -866,43 +879,46 @@ export default function EmailNewsletterEditor() {
   // };
 
   const handleShareLink = async () => {
-    try {
-      setIsSharing(true);
-      const dataToShare = { name: newsletterName, elements, globalSettings };
+  try {
+    setIsSharing(true);
+    const dataToShare = { name: newsletterName, elements, globalSettings };
 
-      const publicId = `newsletter-${Date.now()}`;
-      const cloudinaryData = await cloudinaryService.uploadRawData(
-        dataToShare,
-        publicId
-      );
-
-      if (cloudinaryData.secure_url) {
-        const url = `${window.location.origin}${
-          window.location.pathname
-        }?template=${encodeURIComponent(cloudinaryData.secure_url)}`;
-        await navigator.clipboard.writeText(url);
-
-        // ✅ SUCCESS NOTIFICATION
-        dispatch(
-          addNotification({
-            type: "success",
-            message: "Share link copied to clipboard!",
-          })
-        );
+    const blobName = `shared/newsletter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.json`;
+    
+    const azureData = await azureBlobService.uploadRawData(
+      dataToShare,
+      blobName,
+      {
+        folder: "shared",
+        container: "templates",
       }
-    } catch (error) {
-      // ✅ ERROR NOTIFICATION
+    );
+
+    if (azureData.secure_url) {
+      const url = `${window.location.origin}${
+        window.location.pathname
+      }?template=${encodeURIComponent(azureData.secure_url)}`;
+      await navigator.clipboard.writeText(url);
+
       dispatch(
         addNotification({
-          type: "error",
-          message: "Failed to create share link",
+          type: "success",
+          message: "Share link copied to clipboard!",
         })
       );
-    } finally {
-      setIsSharing(false);
     }
-  };
-
+  } catch (error) {
+    console.error("Share error:", error);
+    dispatch(
+      addNotification({
+        type: "error",
+        message: "Failed to create share link",
+      })
+    );
+  } finally {
+    setIsSharing(false);
+  }
+};
   const prepareForExport = () => {
     exportLinkRects = [];
 
