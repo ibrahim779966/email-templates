@@ -1,190 +1,123 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { templateService } from "../../api/services/templateService";
-import azureBlobService from "../../api/services/azureBlobService"; // ✅ CHANGED
-import htmlTemplateGenerator from "../../api/services/htmlTemplateGenerator"; // ✅ NEW
 import { getWorkId } from "../../api/utils/storageHelper";
 
-// ============================================================================
 // ASYNC THUNKS FOR EDITOR OPERATIONS
-// ============================================================================
 
-/**
- * Save or update the current newsletter
- * ✅ UPDATED: Now generates HTML and uploads to Azure
- */
 export const saveNewsletter = createAsyncThunk(
   "editor/saveNewsletter",
   async ({ generateThumbnail }, { getState, rejectWithValue }) => {
     try {
-      const state = getState();
+      const state = getState().editor;
       const { elements, globalSettings, newsletterName, currentTemplateId } =
-        state.editor;
+        state;
 
-      const workId = getWorkId();
+      // Generate preview thumbnail
+      const previewImageUrl = await generateThumbnail();
 
-      // Step 1: Generate thumbnail
-      let thumbnailUrl = null;
-      let thumbnailBlobName = null;
-      if (generateThumbnail) {
-        const thumbnailDataUrl = await generateThumbnail();
-        if (thumbnailDataUrl) {
-          const blob = await fetch(thumbnailDataUrl).then((r) => r.blob());
-          const thumbBlobName = `work_${workId}/thumbnails/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.png`;
-          
-          const thumbData = await azureBlobService.uploadImage(blob, thumbBlobName, {
-            folder: `work_${workId}/thumbnails`,
-            container: "templates",
-          });
-          
-          thumbnailUrl = thumbData.secure_url;
-          thumbnailBlobName = thumbData.blob_name;
-        }
-      }
-
-      // Step 2: Prepare template data
       const templateData = {
-        name: newsletterName || "Untitled",
-        elements,
-        globalSettings,
-        workId,
-        createdAt: currentTemplateId ? undefined : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        name: newsletterName || "Untitled Newsletter",
+        elements: elements,
+        globalSettings: globalSettings,
+        previewImageUrl: previewImageUrl,
       };
 
-      // Step 3: Generate HTML for email campaigns ✅ NEW
-      const htmlResult = htmlTemplateGenerator.generateEmailHTML(templateData);
-      
-      if (!htmlResult.success) {
-        throw new Error("Failed to generate HTML template");
-      }
-
-      // Step 4: Upload JSON data to Azure ✅ CHANGED
-      const jsonBlobName = `work_${workId}/templates/${Date.now()}_${Math.random().toString(36).substr(2, 9)}_data.json`;
-      
-      const jsonData = await azureBlobService.uploadRawData(
-        templateData,
-        jsonBlobName,
-        {
-          folder: `work_${workId}/templates`,
-          container: "templates",
-        }
-      );
-
-      // Step 5: Upload HTML file to Azure ✅ NEW
-      const htmlBlobName = `work_${workId}/templates/${Date.now()}_${Math.random().toString(36).substr(2, 9)}_email.html`;
-      
-      const htmlData = await azureBlobService.uploadRawData(
-        htmlResult.html,
-        htmlBlobName,
-        {
-          folder: `work_${workId}/templates`,
-          container: "templates",
-          contentType: "text/html",
-        }
-      );
-
-      // Step 6: Create or update in database ✅ CHANGED
       let response;
       if (currentTemplateId) {
-        // UPDATE existing template
-        const updates = {
-          name: newsletterName || "Untitled",
-          dataUrl: jsonData.secure_url,        // ✅ CHANGED from cloudinaryUrl
-          htmlUrl: htmlData.secure_url,        // ✅ NEW
-          dataBlobName: jsonData.blob_name,    // ✅ NEW
-          htmlBlobName: htmlData.blob_name,    // ✅ NEW
-        };
-        
-        if (thumbnailUrl) {
-          updates.previewImageUrl = thumbnailUrl;
-          updates.thumbnailBlobName = thumbnailBlobName; // ✅ NEW
-        }
-        
+        // Update existing template
         response = await templateService.updateTemplate(
           currentTemplateId,
-          updates
+          templateData
         );
       } else {
-        // CREATE new template
-        response = await templateService.createTemplate({
-          name: newsletterName || "Untitled",
-          dataUrl: jsonData.secure_url,        // ✅ CHANGED from cloudinaryUrl
-          htmlUrl: htmlData.secure_url,        // ✅ NEW
-          dataBlobName: jsonData.blob_name,    // ✅ NEW
-          htmlBlobName: htmlData.blob_name,    // ✅ NEW
-          previewImageUrl: thumbnailUrl,
-          thumbnailBlobName: thumbnailBlobName, // ✅ NEW
-        });
+        // Create new template
+        response = await templateService.createTemplate(templateData);
       }
 
-      console.log("✓ Template saved successfully:", response);
-      return response.data || response;
-      
+      return {
+        templateId: response.data.data._id,
+        template: response.data.data,
+      };
     } catch (error) {
-      console.error("✗ Error saving template:", error);
-      return rejectWithValue({
-        message: error.message || "Failed to save newsletter",
-        code: error.code,
-        status: error.status,
-      });
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to save template"
+      );
     }
   }
 );
 
-/**
- * Load a template into the editor
- * ✅ UPDATED: Now uses Azure Blob Storage
- */
 export const loadTemplateIntoEditor = createAsyncThunk(
   "editor/loadTemplate",
-  async ({ templateId, dataUrl }, { rejectWithValue }) => {
+  async ({ templateId }, { rejectWithValue }) => {
     try {
-      let templateData;
+      const response = await templateService.getTemplateById(templateId);
+      const template = response.data.data;
 
-      if (dataUrl) {
-        // Load directly from Azure URL ✅ CHANGED
-        templateData = await azureBlobService.fetchAzureData(dataUrl);
-      } else if (templateId) {
-        // Fetch template metadata from database
-        const template = await templateService.getTemplateById(templateId);
-
-        // Check for dataUrl ✅ CHANGED from cloudinaryUrl
-        if (!template || !template.dataUrl) {
-          throw new Error("Template not found or missing data URL");
-        }
-
-        // Load template data from Azure ✅ CHANGED
-        templateData = await azureBlobService.fetchAzureData(template.dataUrl);
-        templateData._id = template._id || template.id;
-      } else {
-        throw new Error("Either templateId or dataUrl is required");
-      }
-
-      // Validate template data
-      if (!templateData || !templateData.elements) {
-        throw new Error("Invalid template data - missing elements");
-      }
-
-      console.log("✓ Template loaded successfully");
-      return templateData;
-      
+      return {
+        elements: template.elements || [],
+        globalSettings: template.globalSettings || {
+          maxWidth: "600px",
+          minHeight: "800px",
+          backgroundColor: "#f5f5f5",
+          newsletterColor: "#ffffff",
+          fontFamily: "Arial, sans-serif",
+        },
+        newsletterName: template.name || "Untitled Newsletter",
+        currentTemplateId: template._id,
+      };
     } catch (error) {
-      console.error("✗ Error loading template:", error);
-      return rejectWithValue({
-        message: error.message || "Failed to load template",
-        code: error.code,
-        status: error.status,
-      });
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to load template"
+      );
     }
   }
 );
 
-// ============================================================================
-// INITIAL STATE
-// ============================================================================
+// Helper: Recursive update element in nested tree
+const updateElementInTree = (elements, targetId, updates) => {
+  return elements.map((el) => {
+    if (el.id === targetId) {
+      return { ...el, ...updates };
+    }
+    if (el.children && el.children.length > 0) {
+      return {
+        ...el,
+        children: updateElementInTree(el.children, targetId, updates),
+      };
+    }
+    return el;
+  });
+};
+
+// Helper: Recursive delete element in nested tree
+const deleteElementInTree = (elements, targetId) => {
+  return elements
+    .filter((el) => el.id !== targetId)
+    .map((el) => {
+      if (el.children && el.children.length > 0) {
+        return { ...el, children: deleteElementInTree(el.children, targetId) };
+      }
+      return el;
+    });
+};
+
+// Helper: Recursive find element in nested tree
+const findElementInTree = (elements, targetId) => {
+  if (!targetId) return null;
+
+  for (let element of elements) {
+    if (element.id === targetId) {
+      return element;
+    }
+    if (element.children && element.children.length > 0) {
+      const found = findElementInTree(element.children, targetId);
+      if (found) return found;
+    }
+  }
+  return null;
+};
 
 const initialState = {
-  // Newsletter content
   elements: [
     {
       id: "header-1",
@@ -204,10 +137,8 @@ const initialState = {
     },
   ],
 
-  // Selection
   selectedElementId: null,
 
-  // Global settings
   globalSettings: {
     backgroundColor: "#f5f5f5",
     maxWidth: "600px",
@@ -216,37 +147,25 @@ const initialState = {
     minHeight: "800px",
   },
 
-  // Newsletter metadata
   newsletterName: "Untitled Newsletter",
   currentTemplateId: null,
 
-  // View state
-  activeView: "editor", // 'editor' | 'preview'
+  activeView: "editor",
 
-  // Save state
   saving: false,
   saveError: null,
   lastSaved: null,
 
-  // Load state
   loading: false,
   loadError: null,
 
-  // Dirty flag (has unsaved changes)
   isDirty: false,
 };
-
-// ============================================================================
-// SLICE
-// ============================================================================
 
 const editorSlice = createSlice({
   name: "editor",
   initialState,
   reducers: {
-    // ========================================================================
-    // ELEMENTS MANAGEMENT
-    // ========================================================================
     setElements: (state, action) => {
       state.elements = action.payload;
       state.isDirty = true;
@@ -259,15 +178,14 @@ const editorSlice = createSlice({
 
     updateElement: (state, action) => {
       const { id, updates } = action.payload;
-      const index = state.elements.findIndex((el) => el.id === id);
-      if (index !== -1) {
-        state.elements[index] = { ...state.elements[index], ...updates };
-        state.isDirty = true;
-      }
+      // recursively update to handle nested elements
+      state.elements = updateElementInTree(state.elements, id, updates);
+      state.isDirty = true;
     },
 
     deleteElement: (state, action) => {
-      state.elements = state.elements.filter((el) => el.id !== action.payload);
+      // recursively delete to handle nested elements
+      state.elements = deleteElementInTree(state.elements, action.payload);
       if (state.selectedElementId === action.payload) {
         state.selectedElementId = null;
       }
@@ -301,9 +219,6 @@ const editorSlice = createSlice({
       state.isDirty = true;
     },
 
-    // ========================================================================
-    // SELECTION
-    // ========================================================================
     setSelectedElementId: (state, action) => {
       state.selectedElementId = action.payload;
     },
@@ -312,9 +227,6 @@ const editorSlice = createSlice({
       state.selectedElementId = null;
     },
 
-    // ========================================================================
-    // GLOBAL SETTINGS
-    // ========================================================================
     setGlobalSettings: (state, action) => {
       state.globalSettings = { ...state.globalSettings, ...action.payload };
       state.isDirty = true;
@@ -326,9 +238,6 @@ const editorSlice = createSlice({
       state.isDirty = true;
     },
 
-    // ========================================================================
-    // METADATA
-    // ========================================================================
     setNewsletterName: (state, action) => {
       state.newsletterName = action.payload;
       state.isDirty = true;
@@ -338,9 +247,6 @@ const editorSlice = createSlice({
       state.currentTemplateId = action.payload;
     },
 
-    // ========================================================================
-    // VIEW
-    // ========================================================================
     setActiveView: (state, action) => {
       state.activeView = action.payload;
     },
@@ -349,9 +255,6 @@ const editorSlice = createSlice({
       state.activeView = state.activeView === "editor" ? "preview" : "editor";
     },
 
-    // ========================================================================
-    // STATE MANAGEMENT
-    // ========================================================================
     markAsSaved: (state) => {
       state.isDirty = false;
       state.lastSaved = new Date().toISOString();
@@ -369,9 +272,6 @@ const editorSlice = createSlice({
 
   extraReducers: (builder) => {
     builder
-      // ========================================================================
-      // SAVE NEWSLETTER
-      // ========================================================================
       .addCase(saveNewsletter.pending, (state) => {
         state.saving = true;
         state.saveError = null;
@@ -381,9 +281,8 @@ const editorSlice = createSlice({
         state.isDirty = false;
         state.lastSaved = new Date().toISOString();
 
-        // Update template ID if it was a new template
         if (!state.currentTemplateId && action.payload) {
-          state.currentTemplateId = action.payload._id || action.payload.id;
+          state.currentTemplateId = action.payload.id;
         }
       })
       .addCase(saveNewsletter.rejected, (state, action) => {
@@ -392,9 +291,6 @@ const editorSlice = createSlice({
           action.payload?.message || "Failed to save newsletter";
       })
 
-      // ========================================================================
-      // LOAD TEMPLATE
-      // ========================================================================
       .addCase(loadTemplateIntoEditor.pending, (state) => {
         state.loading = true;
         state.loadError = null;
@@ -417,10 +313,6 @@ const editorSlice = createSlice({
   },
 });
 
-// ============================================================================
-// EXPORTS
-// ============================================================================
-
 export const {
   setElements,
   addElement,
@@ -441,33 +333,17 @@ export const {
   clearErrors,
 } = editorSlice.actions;
 
-// Selectors
 export const selectElements = (state) => state.editor.elements;
+
 export const selectSelectedElement = (state) => {
   const id = state.editor.selectedElementId;
-  return state.editor.elements.find((el) => el.id === id) || null;
+  if (!id) return null;
+  return findElementInTree(state.editor.elements, id);
 };
+
 export const selectGlobalSettings = (state) => state.editor.globalSettings;
 export const selectNewsletterName = (state) => state.editor.newsletterName;
 export const selectIsDirty = (state) => state.editor.isDirty;
 export const selectSaving = (state) => state.editor.saving;
 
 export default editorSlice.reducer;
-
-
-
-// ---
-
-// ## 🔧 **What Happens When You Save Now**
-// ```
-// User Saves Template
-//        ↓
-// 1. Generate Thumbnail → Upload to Azure
-// 2. Generate HTML from template data
-// 3. Upload JSON data → Azure Blob Storage
-// 4. Upload HTML file → Azure Blob Storage
-// 5. Save metadata to Database:
-//    - dataUrl (JSON URL for editing)
-//    - htmlUrl (HTML URL for campaigns) ← NEW!
-//    - dataBlobName (for deletion)
-//    - htmlBlobName (for deletion)

@@ -1,5 +1,6 @@
-// ImagePropertiesPanel.jsx
-import React, { useRef } from "react";
+// ImagePropertiesPanel.jsx - Email-Safe Version with Canvas Cropping
+
+import React, { useRef, useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -36,15 +37,18 @@ import {
   RotateCw,
   Upload,
   Link,
-  Eraser,
-  Wand2,
+  AlertCircle,
   Shapes,
+  Wand2,
+  Loader2,
 } from "lucide-react";
+import CanvasCropModal from "./CanvasCropModal";
+import { applyCanvasCropToElement } from "../api/utils/imageUtils";
 
 const isBrowser = () =>
   typeof window !== "undefined" && typeof document !== "undefined";
 
-// Build per-corner radius string if any corner is set; else return styles.borderRadius or fallback
+// Border radius helpers
 const composeCornerRadius = (styles, fallback = "0px") => {
   const tl = styles?.borderTopLeftRadius;
   const tr = styles?.borderTopRightRadius;
@@ -58,7 +62,6 @@ const composeCornerRadius = (styles, fallback = "0px") => {
   return styles?.borderRadius || fallback;
 };
 
-// Return the final radius to apply given shapeType and styles
 const getShapeBorderRadius = (shapeType, styles) => {
   switch ((shapeType || "rectangle").toLowerCase()) {
     case "circle":
@@ -68,7 +71,6 @@ const getShapeBorderRadius = (shapeType, styles) => {
       return composeCornerRadius(styles, "12px");
     case "rectangle":
       return composeCornerRadius(styles, "0px");
-    // Polygon shapes won't visually show rounded corners due to clipping
     case "trapezoid":
     case "star":
     default:
@@ -76,7 +78,6 @@ const getShapeBorderRadius = (shapeType, styles) => {
   }
 };
 
-// Only use polygon clip-path for polygon shapes
 const getShapeClipPath = (shapeType) => {
   switch ((shapeType || "rectangle").toLowerCase()) {
     case "trapezoid":
@@ -88,12 +89,6 @@ const getShapeClipPath = (shapeType) => {
   }
 };
 
-// Guard to decide if a shape is polygonal
-const isPolygonShape = (shapeType) => {
-  const t = (shapeType || "rectangle").toLowerCase();
-  return t === "trapezoid" || t === "star";
-};
-
 export default function ImagePropertiesPanel({
   element,
   updateElement,
@@ -102,15 +97,20 @@ export default function ImagePropertiesPanel({
 }) {
   if (!element) return null;
 
+  // ============================================================================
+  // STATE
+  // ============================================================================
   const fileInputRef = useRef(null);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [isCropping, setIsCropping] = useState(false);
+  const [cropError, setCropError] = useState(null);
+
   const isImagePresent =
     element.content && element.content.startsWith("data:image");
 
-  // Hook up double-click event from canvas to open file picker
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isBrowser()) return;
     const handler = (ev) => {
-      // optionally check identity: if (ev.detail?.id !== element.id) return;
       if (fileInputRef.current) {
         fileInputRef.current.click();
       }
@@ -119,20 +119,23 @@ export default function ImagePropertiesPanel({
     return () => window.removeEventListener("open-image-upload", handler);
   }, [element?.id]);
 
-  // ✅ Corrected handler to manage all border properties together
+  // ============================================================================
+  // HANDLERS
+  // ============================================================================
+
+  // Email-safe style change handler
   const handleStyleChange = (key, value) => {
     const updatedStyles = {
       ...element.styles,
       [key]: value,
     };
 
-    // Ensure border style is always set to 'solid' when border is active
+    // Border handling
     if (key === "borderWidth" && parseInt(value) > 0) {
       updatedStyles.borderStyle = updatedStyles.borderStyle || "solid";
       updatedStyles.borderColor = updatedStyles.borderColor || "#000000";
     }
 
-    // If the color changes and a width is not set, default it to 1px
     if (key === "borderColor" && !updatedStyles.borderWidth) {
       updatedStyles.borderWidth = "1px";
       updatedStyles.borderStyle = updatedStyles.borderStyle || "solid";
@@ -141,21 +144,18 @@ export default function ImagePropertiesPanel({
     updateElement(element.id, { styles: updatedStyles });
   };
 
-  // ✅ Handle shape changes with proper corner radius logic
+  // Handle shape changes
   const handleShapeChange = (shapeType) => {
     const updatedStyles = {
       ...element.styles,
       shapeType: shapeType,
     };
 
-    // Apply shape-specific styles but preserve existing corner radius for compatible shapes
     switch (shapeType) {
       case "rectangle":
-        // Keep existing border radius for rectangles
         updatedStyles.clipPath = "none";
         break;
       case "rounded-rectangle":
-        // Keep existing border radius or set default
         if (
           !updatedStyles.borderRadius &&
           !updatedStyles.borderTopLeftRadius &&
@@ -169,10 +169,8 @@ export default function ImagePropertiesPanel({
         break;
       case "circle":
       case "oval":
-        // Force 50% for perfect circles
         updatedStyles.borderRadius = "50%";
         updatedStyles.clipPath = "none";
-        // Clear per-corner radius as they don't apply to circles
         delete updatedStyles.borderTopLeftRadius;
         delete updatedStyles.borderTopRightRadius;
         delete updatedStyles.borderBottomRightRadius;
@@ -181,7 +179,6 @@ export default function ImagePropertiesPanel({
       case "trapezoid":
         updatedStyles.borderRadius = "0px";
         updatedStyles.clipPath = "polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)";
-        // Clear per-corner radius as they don't apply to clipped shapes
         delete updatedStyles.borderTopLeftRadius;
         delete updatedStyles.borderTopRightRadius;
         delete updatedStyles.borderBottomRightRadius;
@@ -191,7 +188,6 @@ export default function ImagePropertiesPanel({
         updatedStyles.borderRadius = "0px";
         updatedStyles.clipPath =
           "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)";
-        // Clear per-corner radius as they don't apply to clipped shapes
         delete updatedStyles.borderTopLeftRadius;
         delete updatedStyles.borderTopRightRadius;
         delete updatedStyles.borderBottomRightRadius;
@@ -205,12 +201,16 @@ export default function ImagePropertiesPanel({
     updateElement(element.id, { styles: updatedStyles });
   };
 
-  // ✅ Update image URL
+  // Update image URL
   const handleURLChange = (e) => {
     updateElement(element.id, { content: e.target.value });
   };
 
-  // ✅ Handles bringing the element to the front or back
+  // Update alt text
+  const handleAltTextChange = (e) => {
+    updateElement(element.id, { altText: e.target.value });
+  };
+
   const handleLayerChange = (direction) => {
     if (direction === "front") {
       handleStyleChange("zIndex", 1000);
@@ -219,17 +219,50 @@ export default function ImagePropertiesPanel({
     }
   };
 
-  // Helper to check if corner radius controls should be disabled
   const isCornerRadiusDisabled = () => {
     const shapeType = element.styles?.shapeType || "rectangle";
     return ["circle", "oval", "trapezoid", "star"].includes(shapeType);
   };
 
-  // Helper to get corner radius display value
   const getCornerRadiusValue = () => {
     if (isCornerRadiusDisabled()) return 0;
     return parseInt(element.styles?.borderRadius) || 0;
   };
+
+  // ============================================================================
+  // CANVAS CROP HANDLERS
+  // ============================================================================
+
+  const handleApplyCanvasCrop = async (cropData) => {
+    try {
+      setIsCropping(true);
+      setCropError(null);
+      setCropModalOpen(false);
+
+      // Apply crop
+      const success = await applyCanvasCropToElement(
+        element,
+        cropData,
+        updateElement,
+        true // Upload to Cloudinary
+      );
+
+      if (success) {
+        console.log("✅ Image cropped successfully!");
+        // Optional: Show success toast notification
+      }
+    } catch (error) {
+      console.error("❌ Crop failed:", error);
+      setCropError(error.message || "Failed to crop image");
+      // Optional: Show error toast notification
+    } finally {
+      setIsCropping(false);
+    }
+  };
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   return (
     <Card className="shadow-lg border-0">
@@ -239,17 +272,18 @@ export default function ImagePropertiesPanel({
           Image Properties
         </CardTitle>
         <CardDescription className="text-sm leading-relaxed">
-          Upload images, customize appearance, and control{" "}
+          Upload images, add alt text for email safety, and customize appearance{" "}
           <Badge variant="secondary" className="text-xs">
-            visual properties
-          </Badge>{" "}
-          for your image elements.
+            Email-Safe
+          </Badge>
         </CardDescription>
       </CardHeader>
 
       <CardContent className="p-0">
         <Accordion type="multiple" defaultValue={["source"]} className="w-full">
-          {/* Image Source Section */}
+          {/* ===================================================================
+              IMAGE SOURCE SECTION
+              =================================================================== */}
           <AccordionItem value="source" className="border-0">
             <AccordionTrigger className="px-4 py-3 bg-cyan-50/50 hover:bg-cyan-50 border-b">
               <div className="flex items-center gap-2">
@@ -260,7 +294,7 @@ export default function ImagePropertiesPanel({
             <AccordionContent className="px-4 pb-4">
               <div className="space-y-4 pt-2">
                 {/* Image Preview */}
-                {isImagePresent && (
+                {element.content && (
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Current Image</Label>
                     <div className="relative">
@@ -277,12 +311,12 @@ export default function ImagePropertiesPanel({
                 <div className="space-y-2">
                   <Button
                     type="button"
-                    onClick={() => fileInputRef.current.click()}
+                    onClick={() => fileInputRef.current?.click()}
                     variant="outline"
                     className="w-full gap-2"
                   >
                     <Upload className="w-4 h-4" />
-                    {isImagePresent ? "Change Image" : "Upload Image"}
+                    {element.content ? "Change Image" : "Upload Image"}
                   </Button>
                   <input
                     type="file"
@@ -290,8 +324,11 @@ export default function ImagePropertiesPanel({
                     ref={fileInputRef}
                     className="hidden"
                     onChange={(e) => {
-                      const file = e.target.files[0];
-                      if (file) handleImageUpload(element.id, file);
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleImageUpload(element.id, file);
+                        e.target.value = "";
+                      }
                     }}
                   />
                 </div>
@@ -322,12 +359,207 @@ export default function ImagePropertiesPanel({
                     placeholder="https://example.com/image.jpg"
                     className="transition-all duration-200"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Use hosted/CDN URLs, not base64 data URIs for email
+                  </p>
                 </div>
               </div>
             </AccordionContent>
           </AccordionItem>
 
-          {/* Image Shape & Sizing Section */}
+          {/* ===================================================================
+              CANVAS CROPPING SECTION (NEW)
+              =================================================================== */}
+          <AccordionItem value="cropping" className="border-0">
+            <AccordionTrigger className="px-4 py-3 bg-green-50/50 hover:bg-green-50 border-b">
+              <div className="flex items-center gap-2">
+                <Wand2 className="w-4 h-4 text-green-600" />
+                <span className="font-medium">Canvas Cropping</span>
+                {element.cropData && (
+                  <Badge className="ml-2 bg-green-600">Applied</Badge>
+                )}
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <div className="space-y-4 pt-2">
+                {/* Info Card */}
+                <Card className="bg-green-50 border-green-200">
+                  <CardContent className="p-3">
+                    <p className="text-xs text-green-900 font-medium">
+                      ✨ Canvas-Based Image Cropping
+                    </p>
+                    <p className="text-xs text-green-800 mt-2">
+                      Crop your image visually on an interactive canvas. The
+                      exact crop is saved as a standalone image, ensuring your
+                      email shows the perfect crop across all email clients.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Error Display */}
+                {cropError && (
+                  <Card className="bg-red-50 border-red-200">
+                    <CardContent className="p-3">
+                      <p className="text-xs text-red-700">❌ {cropError}</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Open Crop Tool Button */}
+                <Button
+                  type="button"
+                  onClick={() => setCropModalOpen(true)}
+                  disabled={!element.content || isCropping}
+                  className="w-full gap-2 bg-green-600 hover:bg-green-700"
+                >
+                  {isCropping ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Processing Crop...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-4 h-4" />
+                      Open Canvas Crop Tool
+                    </>
+                  )}
+                </Button>
+
+                {!element.content && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Upload an image first to use cropping
+                  </p>
+                )}
+
+                {/* Crop Applied Indicator */}
+                {element.cropData && (
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="p-3">
+                      <p className="text-xs text-blue-700 font-medium">
+                        ✓ Crop Applied
+                      </p>
+                      <p className="text-xs text-blue-600 mt-2">
+                        Dimensions:{" "}
+                        <strong>
+                          {element.cropData.width}×{element.cropData.height}px
+                        </strong>
+                      </p>
+                      <p className="text-xs text-blue-600">
+                        Position:{" "}
+                        <strong>
+                          ({element.cropData.x}, {element.cropData.y})
+                        </strong>
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* ===================================================================
+              ACCESSIBILITY & EMAIL SAFETY SECTION
+              =================================================================== */}
+          <AccordionItem value="accessibility" className="border-0">
+            <AccordionTrigger className="px-4 py-3 bg-emerald-50/50 hover:bg-emerald-50 border-b">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-emerald-600" />
+                <span className="font-medium">
+                  Accessibility & Email Safety
+                </span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <div className="space-y-4 pt-2">
+                <Card className="bg-emerald-50 border-emerald-200">
+                  <CardContent className="p-3">
+                    <p className="text-xs text-emerald-900 font-medium">
+                      ✅ Email-Safe Images Requirement
+                    </p>
+                    <p className="text-xs text-emerald-800 mt-2">
+                      Always include descriptive alt text. Many email clients
+                      (like Outlook) disable images by default. Alt text helps
+                      recipients understand your message and improves
+                      accessibility.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Alt Text Input */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">
+                    Alt Text
+                    <Badge variant="default" className="ml-2 text-xs">
+                      Required
+                    </Badge>
+                  </Label>
+                  <Input
+                    value={element.altText || ""}
+                    onChange={handleAltTextChange}
+                    placeholder="Describe the image content..."
+                    maxLength="125"
+                    className="transition-all duration-200"
+                  />
+                  <div className="flex justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      Describe what the image shows for screen readers and
+                      image-disabled clients
+                    </p>
+                    <span className="text-xs text-muted-foreground">
+                      {(element.altText || "").length}/125
+                    </span>
+                  </div>
+                </div>
+
+                {/* Image Hosting Best Practice */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Image Hosting</Label>
+                  <div className="flex items-start gap-2 p-3 bg-blue-50 rounded border border-blue-200">
+                    <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm space-y-1">
+                      <p className="font-medium text-blue-900">
+                        Use Hosted URLs
+                      </p>
+                      <p className="text-xs text-blue-800">
+                        Use CDN/hosted image URLs instead of base64 data URIs:
+                      </p>
+                      <p className="text-xs text-blue-700 font-mono mt-1">
+                        ✓ https://cdn.example.com/image.jpg
+                      </p>
+                      <p className="text-xs text-blue-700 font-mono">
+                        ✗ data:image/png;base64,iVBO...
+                      </p>
+                      <p className="text-xs text-blue-800 mt-1">
+                        Benefits: Better deliverability, smaller email size,
+                        faster loading
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Image Optimization Tip */}
+                <Card className="bg-orange-50 border-orange-200">
+                  <CardContent className="p-3">
+                    <p className="text-xs font-medium text-orange-900">
+                      📊 Image Optimization Tips
+                    </p>
+                    <ul className="text-xs text-orange-800 mt-2 space-y-1">
+                      <li>• Keep file size under 200KB for fast loading</li>
+                      <li>
+                        • Use multiple smaller images instead of one large image
+                      </li>
+                      <li>• Maintain 60:40 text-to-image ratio</li>
+                      <li>• Compress images with tools like TinyPNG</li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* ===================================================================
+              IMAGE SHAPE & SIZING SECTION
+              =================================================================== */}
           <AccordionItem value="shape" className="border-0">
             <AccordionTrigger className="px-4 py-3 bg-indigo-50/50 hover:bg-indigo-50 border-b">
               <div className="flex items-center gap-2">
@@ -338,7 +570,12 @@ export default function ImagePropertiesPanel({
             <AccordionContent className="px-4 pb-4">
               <div className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Shape</Label>
+                  <Label className="text-sm font-medium">
+                    Shape
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      Web Only
+                    </Badge>
+                  </Label>
                   <Select
                     value={element.styles?.shapeType || "rectangle"}
                     onValueChange={handleShapeChange}
@@ -353,10 +590,16 @@ export default function ImagePropertiesPanel({
                       </SelectItem>
                       <SelectItem value="circle">Circle</SelectItem>
                       <SelectItem value="oval">Oval</SelectItem>
-                      {/* <SelectItem value="trapezoid">Trapezoid</SelectItem>
-                      <SelectItem value="star">Star</SelectItem> */}
+                      <SelectItem value="trapezoid">
+                        Trapezoid (Email Limited)
+                      </SelectItem>
+                      <SelectItem value="star">Star (Email Limited)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Note: Complex shapes may not render in all email clients.
+                    Stick to rectangles for email.
+                  </p>
                 </div>
 
                 {/* Shape Preview */}
@@ -377,7 +620,9 @@ export default function ImagePropertiesPanel({
             </AccordionContent>
           </AccordionItem>
 
-          {/* Dimensions & Layout Section */}
+          {/* ===================================================================
+              DIMENSIONS & LAYOUT SECTION
+              =================================================================== */}
           <AccordionItem value="layout" className="border-0">
             <AccordionTrigger className="px-4 py-3 bg-purple-50/50 hover:bg-purple-50 border-b">
               <div className="flex items-center gap-2">
@@ -387,39 +632,64 @@ export default function ImagePropertiesPanel({
             </AccordionTrigger>
             <AccordionContent className="px-4 pb-4">
               <div className="space-y-4 pt-2">
+                {/* Email-Safe Sizing Warning */}
+                <Card className="bg-yellow-50 border-yellow-200">
+                  <CardContent className="p-3">
+                    <p className="text-xs font-medium text-yellow-900">
+                      ⚠️ Email Width Guidelines
+                    </p>
+                    <p className="text-xs text-yellow-800 mt-2">
+                      Email content width should be{" "}
+                      <strong>600px or less</strong> for optimal display across
+                      all devices and email clients. Mobile will resize
+                      automatically.
+                    </p>
+                  </CardContent>
+                </Card>
+
                 {/* Size Controls */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Width</Label>
-                    <div className="flex gap-1 items-center">
-                      <Input
-                        type="number"
-                        value={parseInt(element.styles?.width) || 300}
-                        onChange={(e) =>
-                          handleStyleChange("width", `${e.target.value}px`)
-                        }
-                        className="text-sm"
-                      />
-                      <Badge variant="outline" className="text-xs">
+                    <Label className="text-sm font-medium">
+                      Width
+                      <Badge variant="outline" className="ml-2 text-xs">
                         px
                       </Badge>
-                    </div>
+                    </Label>
+                    <Input
+                      type="number"
+                      min="40"
+                      max="600"
+                      value={parseInt(element.styles?.width) || 300}
+                      onChange={(e) =>
+                        handleStyleChange(
+                          "width",
+                          `${Math.min(600, parseInt(e.target.value) || 300)}px`
+                        )
+                      }
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Max: 600px</p>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Height</Label>
-                    <div className="flex gap-1 items-center">
-                      <Input
-                        type="number"
-                        value={parseInt(element.styles?.height) || 200}
-                        onChange={(e) =>
-                          handleStyleChange("height", `${e.target.value}px`)
-                        }
-                        className="text-sm"
-                      />
-                      <Badge variant="outline" className="text-xs">
+                    <Label className="text-sm font-medium">
+                      Height
+                      <Badge variant="outline" className="ml-2 text-xs">
                         px
                       </Badge>
-                    </div>
+                    </Label>
+                    <Input
+                      type="number"
+                      min="40"
+                      value={parseInt(element.styles?.height) || 200}
+                      onChange={(e) =>
+                        handleStyleChange(
+                          "height",
+                          `${Math.max(40, parseInt(e.target.value) || 200)}px`
+                        )
+                      }
+                      className="text-sm"
+                    />
                   </div>
                 </div>
 
@@ -437,7 +707,7 @@ export default function ImagePropertiesPanel({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="contain">
-                        Contain - Fit within bounds
+                        Contain - Fit within bounds (Recommended)
                       </SelectItem>
                       <SelectItem value="cover">
                         Cover - Fill container
@@ -464,16 +734,23 @@ export default function ImagePropertiesPanel({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="left">Left</SelectItem>
-                      <SelectItem value="center">Center</SelectItem>
+                      <SelectItem value="center">
+                        Center (Email-Safe)
+                      </SelectItem>
                       <SelectItem value="right">Right</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Center alignment works most reliably across email clients
+                  </p>
                 </div>
               </div>
             </AccordionContent>
           </AccordionItem>
 
-          {/* Styling Section */}
+          {/* ===================================================================
+              STYLING SECTION
+              =================================================================== */}
           <AccordionItem value="styling" className="border-0">
             <AccordionTrigger className="px-4 py-3 bg-orange-50/50 hover:bg-orange-50 border-b">
               <div className="flex items-center gap-2">
@@ -485,7 +762,9 @@ export default function ImagePropertiesPanel({
               <div className="space-y-4 pt-2">
                 {/* Border */}
                 <div className="space-y-3">
-                  <Label className="text-sm font-medium">Border</Label>
+                  <Label className="text-sm font-medium">
+                    Border (Email-Safe)
+                  </Label>
                   <Card className="bg-slate-50 border-dashed">
                     <CardContent className="p-3 space-y-3">
                       <div className="grid grid-cols-2 gap-3">
@@ -496,11 +775,16 @@ export default function ImagePropertiesPanel({
                           <div className="flex gap-1 items-center">
                             <Input
                               type="number"
+                              min="0"
+                              max="8"
                               value={parseInt(element.styles?.borderWidth) || 0}
                               onChange={(e) =>
                                 handleStyleChange(
                                   "borderWidth",
-                                  `${e.target.value}px`
+                                  `${Math.min(
+                                    8,
+                                    parseInt(e.target.value) || 0
+                                  )}px`
                                 )
                               }
                               className="h-8 text-sm"
@@ -539,25 +823,44 @@ export default function ImagePropertiesPanel({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">None</SelectItem>
-                            <SelectItem value="solid">Solid</SelectItem>
-                            <SelectItem value="dashed">Dashed</SelectItem>
-                            <SelectItem value="dotted">Dotted</SelectItem>
+                            <SelectItem value="solid">
+                              Solid (Most Compatible)
+                            </SelectItem>
+                            <SelectItem value="dashed">
+                              Dashed (Limited)
+                            </SelectItem>
+                            <SelectItem value="dotted">
+                              Dotted (Limited)
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </CardContent>
                   </Card>
+                  <p className="text-xs text-muted-foreground">
+                    Max 8px width for Outlook compatibility
+                  </p>
                 </div>
 
                 {/* Border Radius */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Corner Radius</Label>
+                  <Label className="text-sm font-medium">
+                    Corner Radius
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      Limited Support
+                    </Badge>
+                  </Label>
                   <div className="flex gap-1 items-center">
                     <Input
                       type="number"
+                      min="0"
+                      max="25"
                       value={getCornerRadiusValue()}
                       onChange={(e) =>
-                        handleStyleChange("borderRadius", `${e.target.value}px`)
+                        handleStyleChange(
+                          "borderRadius",
+                          `${Math.min(25, parseInt(e.target.value) || 0)}px`
+                        )
                       }
                       className="text-sm"
                       disabled={isCornerRadiusDisabled()}
@@ -574,12 +877,21 @@ export default function ImagePropertiesPanel({
                         : "Corner radius doesn't apply to polygon shapes (trapezoid, star)"}
                     </p>
                   )}
+                  <p className="text-xs text-orange-600">
+                    ⚠️ Not supported in Outlook 2007-2016. Works best with
+                    rectangles.
+                  </p>
                 </div>
 
                 {/* Opacity */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Opacity</Label>
+                    <Label className="text-sm font-medium">
+                      Opacity
+                      <Badge variant="outline" className="ml-2 text-xs">
+                        Limited
+                      </Badge>
+                    </Label>
                     <Badge variant="outline" className="text-xs">
                       {Math.round(
                         (element.styles?.opacity !== undefined
@@ -603,92 +915,100 @@ export default function ImagePropertiesPanel({
                     step={0.05}
                     className="w-full"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    May not work in all email clients
+                  </p>
                 </div>
 
-                {/* Shadow */}
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium">Drop Shadow</Label>
-                  <Switch
-                    checked={
-                      element.styles?.boxShadow &&
-                      element.styles.boxShadow !== "none"
-                    }
-                    onCheckedChange={(checked) =>
-                      handleStyleChange(
-                        "boxShadow",
-                        checked ? "2px 2px 8px rgba(0,0,0,0.3)" : "none"
-                      )
-                    }
-                  />
-                </div>
+                {/* Shadow - Warning */}
+                <Card className="bg-red-50 border-red-200">
+                  <CardContent className="p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-red-900">
+                          ⚠️ Shadows Not Supported in Email
+                        </p>
+                        <p className="text-xs text-red-800">
+                          Box shadows don't render in most email clients. Avoid
+                          for email campaigns.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                {/* Rotation */}
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center gap-2">
-                    <RotateCw className="w-3 h-3" />
-                    Rotation
-                  </Label>
-                  <div className="flex gap-1 items-center">
-                    <Input
-                      type="number"
-                      value={
-                        parseInt(
-                          element.styles?.transform?.match(/-?\d+/)?.[0]
-                        ) || 0
-                      }
-                      onChange={(e) =>
-                        handleStyleChange(
-                          "transform",
-                          `rotate(${e.target.value}deg)`
-                        )
-                      }
-                      className="text-sm"
-                    />
-                    <Badge variant="outline" className="text-xs">
-                      deg
-                    </Badge>
-                  </div>
-                </div>
+                {/* Rotation - Warning */}
+                <Card className="bg-red-50 border-red-200">
+                  <CardContent className="p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-red-900">
+                          ⚠️ Rotation Not Supported in Email
+                        </p>
+                        <p className="text-xs text-red-800">
+                          Transform and rotation don't work in most email
+                          clients. Avoid for email campaigns.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </AccordionContent>
           </AccordionItem>
 
-          {/* Layering Section */}
+          {/* ===================================================================
+              LAYERING SECTION
+              =================================================================== */}
           <AccordionItem value="layering" className="border-0">
             <AccordionTrigger className="px-4 py-3 bg-green-50/50 hover:bg-green-50 border-b">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-green-600" />
-                <span className="font-medium">Layering</span>
+                <span className="font-medium">Layering (Web Preview Only)</span>
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-4 pb-4">
               <div className="space-y-4 pt-2">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Z-Index Control</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      onClick={() => handleLayerChange("front")}
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                    >
-                      <Layers className="w-3 h-3" />
-                      To Front
-                    </Button>
-                    <Button
-                      onClick={() => handleLayerChange("back")}
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                    >
-                      <Layers className="w-3 h-3 rotate-180" />
-                      To Back
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Control which elements appear above or below others
-                  </p>
-                </div>
+                <Card className="bg-gray-50 border-dashed">
+                  <CardContent className="p-3">
+                    <p className="text-xs text-gray-600 mb-3">
+                      Z-index controls layering in the web editor. These
+                      settings are preview-only and won't affect email
+                      rendering, as email clients don't support z-index.
+                    </p>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">
+                        Z-Index Control
+                      </Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          onClick={() => handleLayerChange("front")}
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                        >
+                          <Layers className="w-3 h-3" />
+                          To Front
+                        </Button>
+                        <Button
+                          onClick={() => handleLayerChange("back")}
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                        >
+                          <Layers className="w-3 h-3 rotate-180" />
+                          To Back
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        For preview only - arrange images using table structure
+                        in email
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -709,6 +1029,18 @@ export default function ImagePropertiesPanel({
           </Button>
         </div>
       </CardContent>
+
+      {/* Canvas Crop Modal */}
+      <CanvasCropModal
+        isOpen={cropModalOpen}
+        onClose={() => setCropModalOpen(false)}
+        imageSrc={element.content}
+        onCropConfirm={handleApplyCanvasCrop}
+        elementDimensions={{
+          width: parseInt(element.styles?.width) || 300,
+          height: parseInt(element.styles?.height) || 200,
+        }}
+      />
     </Card>
   );
 }

@@ -4,11 +4,10 @@
 // RESPONSIBILITIES: Handle business rules, validations, and error handling
 // ============================================
 
-const templateRepository = require('../repository/template.repository');
-const { TemplateNotFoundError } = require('../utils/errors');
+const templateRepository = require("../repository/template.repository");
+const { TemplateNotFoundError } = require("../utils/errors");
 
 class TemplateService {
-
   /**
    * Create a new template
    * @param {Object} templateData - Data for creating template
@@ -26,12 +25,12 @@ class TemplateService {
    */
   async getTemplateById(templateId) {
     const template = await templateRepository.findById(templateId);
-    
+
     // Business rule: Throw error if template doesn't exist
     if (!template) {
       throw new TemplateNotFoundError(`Template ID ${templateId} not found.`);
     }
-    
+
     return template;
   }
 
@@ -59,10 +58,15 @@ class TemplateService {
 
     // Business rule: Throw error if template doesn't exist
     if (!updatedTemplate) {
-      throw new TemplateNotFoundError(`Template ID ${templateId} not found for update.`);
+      throw new TemplateNotFoundError(
+        `Template ID ${templateId} not found for update.`
+      );
     }
-    
+
     return updatedTemplate;
+  }
+  async getPublicTemplates() {
+    return await templateRepository.getPublicTemplates();
   }
 
   /**
@@ -76,12 +80,13 @@ class TemplateService {
 
     // Business rule: Throw error if template doesn't exist
     if (!deletedTemplate) {
-      throw new TemplateNotFoundError(`Template ID ${templateId} not found for deletion.`);
+      throw new TemplateNotFoundError(
+        `Template ID ${templateId} not found for deletion.`
+      );
     }
-    
-    return { message: 'Template successfully deleted.' };
+
+    return { message: "Template successfully deleted." };
   }
 }
 
 module.exports = new TemplateService();
-

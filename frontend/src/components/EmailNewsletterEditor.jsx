@@ -1,9 +1,15 @@
 // EmailNewsletterEditor.jsx;
 
 import React, { useState, useRef, useEffect } from "react";
+import {
+  parseJsonEmailTemplate,
+  exportElementsToJson,
+} from "../api/utils/jsonTemplateParser";
 import { useDispatch, useSelector } from "react-redux"; // ADD THIS
 import EditorSidebar from "./EditorSidebar";
 import EditorCanvas from "./EditorCanvas";
+import { Code, X } from "lucide-react";
+import { parseHTMLToNewsletterElements, validateHTML } from "./htmlParser";
 import {
   MousePointer,
   Eye,
@@ -42,7 +48,12 @@ import {
 } from "../redux/slices/editorSlice";
 
 import { addNotification } from "../redux/slices/uiSlice";
-import azureBlobService from "../api/services/azureBlobService";
+
+// ✅ ADD THIS:
+import { templateService } from "../api/services/templateService";
+import { uploadImageToCloudinary } from "../api/utils/imageUtils";
+import EmailPreviewPage from "./EmailPreviewPage";
+import EmailPreviewUnified from "./EmailPreviewPage";
 
 // Add LZ-String compression library dynamically
 if (typeof window !== "undefined" && !window.LZString) {
@@ -55,66 +66,37 @@ if (typeof window !== "undefined" && !window.LZString) {
 
 // Social SVG icons for proper rendering in exports
 const SOCIAL_SVGS = {
-  facebook: {
-    viewBox: "0 0 24 24",
-    path: "M22.676 0H1.324C.593 0 0 .593 0 1.324v21.352C0 23.407.593 24 1.324 24h11.494v-9.294H9.691V11h3.127V8.41c0-3.1 1.892-4.788 4.657-4.788 1.323 0 2.458.099 2.787.142v3.233h-1.914c-1.5 0-1.791.712-1.791 1.76V11h3.581l-.467 3.706h-3.114V24h6.102C23.407 24 24 23.407 24 22.676V1.324C24 .593 23.407 0 22.676 0z",
-  },
-  twitter: {
-    viewBox: "0 0 24 24",
-    path: "M23.954 4.569c-.885.392-1.83.656-2.825.775 1.014-.607 1.794-1.569 2.163-2.723-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-2.723 0-4.928 2.205-4.928 4.928 0 .386.044.762.127 1.124-4.094-.205-7.725-2.167-10.159-5.144-.424.729-.666 1.577-.666 2.476 0 1.708.87 3.214 2.188 4.099-.807-.026-1.566-.247-2.228-.616v.062c0 2.385 1.693 4.374 3.946 4.827-.413.111-.849.171-1.296.171-.316 0-.624-.03-.927-.086.624 1.951 2.438 3.372 4.587 3.412-1.68 1.318-3.797 2.105-6.102 2.105-.396 0-.788-.023-1.175-.068 2.179 1.397 4.768 2.213 7.548 2.213 9.057 0 14.01-7.506 14.01-14.009 0-.213-.005-.425-.014-.636.962-.694 1.797-1.562 2.457-2.549z",
-  },
-  instagram: {
-    viewBox: "0 0 24 24",
-    path: "M12 2.163c3.204 0 3.584.012 4.85.07 1.17.056 1.97.24 2.427.403a4.92 4.92 0 011.78 1.153 4.92 4.92 0 011.153 1.78c.163.457.347 1.257.403 2.427.058 1.266.07 1.646.07 4.85s-.012 3.584-.07 4.85c-.056 1.17-.24 1.97-.403 2.427a4.92 4.92 0 01-1.153 1.78 4.92 4.92 0 01-1.78 1.153c-.457.163-1.257.347-2.427.403-1.266.058-1.646.07-4.85.07s-3.584-.012-4.85-.07c-1.17-.056-1.97-.24-2.427-.403a4.92 4.92 0 01-1.78-1.153 4.92 4.92 0 01-1.153-1.78c-.163-.457-.347-1.257-.403-2.427C2.175 15.584 2.163 15.204 2.163 12s.012-3.584.07-4.85c.056-1.17.24-1.97.403-2.427a4.92 4.92 0 011.153-1.78 4.92 4.92 0 011.78-1.153c.457-.163 1.257-.347 2.427-.403C8.416 2.175 8.796 2.163 12 2.163zm0 1.837c-3.16 0-3.525.012-4.767.069-1.023.047-1.579.218-1.946.363-.49.19-.84.416-1.207.783-.367.367-.593.717-.783 1.207-.145.367-.316.923-.363 1.946-.057 1.242-.069 1.607-.069 4.767s.012 3.525.069 4.767c.047 1.023.218 1.579.363 1.946.19.49.416.84.783 1.207.367.367.717.593 1.207.783.367.145.923.316 1.946.363 1.242.057 1.607.069 4.767.069s3.525-.012 4.767-.069c1.023-.047 1.579-.218 1.946-.363.49-.19.84-.416 1.207-.783.367-.367.593-.717.783-1.207.145-.367.316-.923.363-1.946.057-1.242.069-1.607.069-4.767s-.012-3.525-.069-4.767c-.047-1.023-.218-1.579-.363-1.946-.19-.49-.416-.84-.783-1.207-.367-.367-.717-.593-1.207-.783-.367-.145-.923-.316-1.946-.363-1.242-.057-1.607-.069-4.767-.069zm0 3.651a4.349 4.349 0 110 8.698 4.349 4.349 0 010-8.698zm0 1.837a2.512 2.512 0 100 5.023 2.512 2.512 0 000-5.023zm5.527-2.91a1.017 1.017 0 110 2.034 1.017 1.017 0 010-2.034z",
-  },
-  linkedin: {
-    viewBox: "0 0 24 24",
-    path: "M4.983 3.5C4.983 4.88 3.88 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1s2.483 1.12 2.483 2.5zM.5 8h4V24h-4zM8 8h3.8v2.2h.05c.53-1 1.83-2.2 3.77-2.2 4.03 0 4.78 2.65 4.78 6.1V24h-4v-5.6c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.95V24h-4z",
-  },
-  youtube: {
-    viewBox: "0 0 24 24",
-    path: "M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z",
-  },
-  whatsapp: {
-    viewBox: "0 0 24 24",
-    path: "M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.051 3.488z",
-  },
-  telegram: {
-    viewBox: "0 0 24 24",
-    path: "M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z",
-  },
-  snapchat: {
-    viewBox: "0 0 24 24",
-    path: "M12.017 0C5.396 0 .029 5.367.029 11.987c0 6.62 5.367 11.987 11.988 11.987s11.987-5.367 11.987-11.987C24.004 5.367 18.637.001 12.017.001z",
-  },
-  tiktok: {
-    viewBox: "0 0 24 24",
-    path: "M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z",
-  },
-  reddit: {
-    viewBox: "0 0 24 24",
-    path: "M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z",
-  },
-  pinterest: {
-    viewBox: "0 0 24 24",
-    path: "M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.174-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.719-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.097.118.112.221.085.341-.09.394-.293 1.195-.334 1.362-.053.225-.172.271-.402.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.357-.629-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24.009 12.017 24c6.624 0 11.99-5.367 11.99-11.987C24.007 5.367 18.641.001 12.017.001z",
-  },
-  threads: {
-    viewBox: "0 0 24 24",
-    path: "M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.055 7.164 1.43 1.781 3.63 2.695 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.808-1.707-.619-.536-1.548-.866-2.721-.866-1.072 0-1.866.284-2.298.724-.291.297-.484.792-.484 1.425 0 .613.179 1.085.53 1.404.297.27.659.405 1.074.405.346 0 .658-.064.926-.19.61-.287.91-1.04.91-2.298 0-1.455-.455-2.46-1.35-2.98-.895-.52-2.117-.78-3.665-.78-1.287 0-2.439.28-3.43.835-1.012.565-1.804 1.375-2.359 2.416-.564 1.058-.848 2.288-.848 3.667 0 1.355.284 2.583.847 3.641.555 1.041 1.347 1.851 2.359 2.416.991.555 2.143.835 3.43.835 1.548 0 2.77-.26 3.665-.78.895-.52 1.35-1.525 1.35-2.98 0-1.258-.3-2.011-.91-2.298-.268-.126-.58-.19-.926-.19-.415 0-.777.135-1.074.405-.351.319-.53.791-.53 1.404 0 .633.193 1.128.484 1.425.432.44 1.226.724 2.298.724 1.173 0 2.102-.33 2.721-.866.433-.375.682-.965.808-1.707a13.853 13.853 0 0 0-3.02.142c-1.464.084-2.703.531-3.583 1.291-.922.797-1.395 1.892-1.33 3.082.067 1.224.689 2.275 1.752 2.964.898.583 2.057.866 3.259.801 1.59-.086 2.844-.688 3.73-1.79.662-.826 1.092-1.92 1.284-3.272.761.45 1.324 1.04 1.634 1.75.528 1.205.557 3.185-1.09 4.798-1.442 1.414-3.177 2.025-5.8 2.045z",
-  },
-  discord: {
-    viewBox: "0 0 24 24",
-    path: "M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419-.019 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1568 2.4189Z",
-  },
-  quora: {
-    viewBox: "0 0 24 24",
-    path: "M12.737 18.646h-.738c-1.655 0-2.993-1.336-2.993-2.993v-2.995c0-1.656 1.338-2.993 2.993-2.993h.738c1.655 0 2.993 1.337 2.993 2.993v2.995c0 1.657-1.338 2.993-2.993 2.993zm.369-3.36v-2.274c0-.607-.493-1.1-1.1-1.1s-1.1.493-1.1 1.1v2.274c0 .607.493 1.1 1.1 1.1s1.1-.493 1.1-1.1z",
-  },
-  wechat: {
-    viewBox: "0 0 24 24",
-    path: "M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 01.213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 00.167-.054l1.903-1.114a.864.864 0 01.717-.098 10.16 10.16 0 002.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.181 0 .655-.52 1.186-1.162 1.186-.642 0-1.162-.531-1.162-1.186 0-.652.52-1.181 1.162-1.181zm5.813 0c.642 0 1.162.529 1.162 1.181 0 .655-.52 1.186-1.162 1.186-.642 0-1.162-.531-1.162-1.186 0-.652.52-1.181 1.162-1.181zm4.721 2.987c-3.897 0-7.022 2.693-7.022 6.04 0 1.838.86 3.516 2.238 4.68a.507.507 0 01.183.572l-.333 1.26c-.016.061-.041.12-.041.181a.243.243 0 00.245.25.275.275 0 00.141-.046l1.637-.952a.726.726 0 01.595-.083c.85.232 1.747.353 2.357.353 3.897 0 7.022-2.693 7.022-6.04 0-3.347-3.125-6.04-7.022-6.04zm-2.607 2.087c.535 0 .969.437.969.979 0 .542-.434.979-.969.979-.535 0-.969-.437-.969-.979 0-.542.434-.979.969-.979zm5.215 0c.535 0 .969.437.969.979 0 .542-.434.979-.969.979-.535 0-.969-.437-.969-.979 0-.542.434-.979.969-.979z",
-  },
+  facebook:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763013812/templates/ycvjepnwrvnizjronfeb.png",
+  twitter:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763013924/templates/b23ztquemmmuoqmaegzv.png",
+  x: "https://res.cloudinary.com/dhlex64es/image/upload/v1763013986/templates/r3ahm2kjyb30ckmllzu0.png",
+  instagram:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014004/templates/vjjw2ykchjhoxas0hngy.png",
+  linkedin:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014026/templates/gob1gnrzqfviszy8frvr.png",
+  youtube:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014048/templates/jqgvg4j6n3c6fltn1ntr.png",
+  whatsapp:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014067/templates/jiwmzlo0i6bgxvzhwtea.png",
+  telegram:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014084/templates/wpxstom0c0ujc5uavkwx.png",
+  tiktok:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014146/templates/ios7eoewnxvyeowrsglc.png",
+  snapchat:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014190/templates/nveuvcx8pimvmdzmfid2.png",
+  reddit:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014213/templates/ivsiyzhvgpd2gk5uwhrz.png",
+  pinterest:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014171/templates/ej8ayjgqnt8pzigfg85t.png",
+  discord:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014234/templates/k3hnm7a133vwawp0vblo.png",
+  threads:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014105/templates/fan0wl9fbigypjtosaqc.png",
+  wechat:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014340/templates/zn1jabhgkfqtm9q4jczj.png",
+  quora:
+    "https://res.cloudinary.com/dhlex64es/image/upload/v1763014355/templates/qxl6sdqf2pehvixadiil.png",
 };
 
 const defaultIcons = [
@@ -257,21 +239,85 @@ const stripLayoutTransforms = (node, preserveImageRotation = false) => {
 };
 
 // Helper to normalize all layout transforms in a DOM tree
+// Helper to normalize all layout transforms in a DOM tree
 const normalizeLayoutTransforms = (root) => {
   const walk = (node) => {
+    // ✅ Skip elements that have rotation applied (preserve rotation)
+    const hasRotation = node.style?.transform?.includes("rotate");
+
     if (node.tagName === "IMG") {
-      stripLayoutTransforms(node, true);
-    } else {
+      // Preserve image rotation if exists
+      if (!hasRotation) {
+        stripLayoutTransforms(node, true);
+      }
+    } else if (!hasRotation) {
+      // Only strip if no rotation
       stripLayoutTransforms(node, false);
     }
+
     Array.from(node.children || []).forEach(walk);
   };
   walk(root);
+};
+/**
+ * Get border styles string
+ */
+const getBorderStyles = (styles) => {
+  if (!styles) return "none";
+  const width = styles.borderWidth || styles.borderTopWidth || "0";
+  const style = styles.borderStyle || "solid";
+  const color = styles.borderColor || "#000";
+
+  if (parseInt(width) > 0) {
+    return `${width} ${style} ${color}`;
+  }
+  return "none";
+};
+
+/**
+ * Build spacing string from individual values
+ */
+const buildSpacing = (styles, property, fallback = "0") => {
+  if (!styles) return fallback;
+
+  const top = styles?.[`${property}Top`] || fallback;
+  const right = styles?.[`${property}Right`] || fallback;
+  const bottom = styles?.[`${property}Bottom`] || fallback;
+  const left = styles?.[`${property}Left`] || fallback;
+
+  if (top === right && right === bottom && bottom === left) return top;
+  return `${top} ${right} ${bottom} ${left}`;
+};
+
+/**
+ * Push link rectangle for tracking
+ */
+let linkRects = [];
+const pushLinkRect = (href, x, y, w, h) => {
+  linkRects.push({ href, x, y, w, h });
+};
+
+/**
+ * Reset link rects
+ */
+const resetLinkRects = () => {
+  linkRects = [];
 };
 
 export default function EmailNewsletterEditor() {
   const [shareDisabled, setShareDisabled] = useState(false);
   const [isSharedDataLoaded, setIsSharedDataLoaded] = useState(false);
+  const [showHTMLImportModal, setShowHTMLImportModal] = useState(false);
+  const [htmlInput, setHtmlInput] = useState("");
+  const [cssInput, setCssInput] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  // ✅ ADD NEW STATE for progress tracking (add this with other useState declarations)
+  const [importProgress, setImportProgress] = useState({
+    stage: "idle",
+    message: "",
+    current: 0,
+    total: 0,
+  });
 
   //Redux
   const dispatch = useDispatch();
@@ -306,6 +352,486 @@ export default function EmailNewsletterEditor() {
 
   const dragItem = useRef(null);
   const canvasRef = useRef(null);
+
+  // ✅ ADD HTML/CSS IMPORT HANDLER
+  // ✅ UPDATED HANDLER - Now async and shows progress
+  // Updated handleHTMLCSSImport function
+  // Removes fetchImages option - keeps all images as URLs
+
+  const handleHTMLCSSImport = async () => {
+    if (!htmlInput.trim()) {
+      dispatch(
+        addNotification({
+          type: "error",
+          message: "Please enter HTML code to import",
+        })
+      );
+      return;
+    }
+
+    setIsImporting(true);
+    setImportProgress({
+      stage: "validating",
+      message: "Validating HTML...",
+      current: 0,
+      total: 1,
+    });
+
+    try {
+      // Validate HTML first
+      const validation = validateHTML(htmlInput);
+
+      if (!validation.valid) {
+        dispatch(
+          addNotification({
+            type: "error",
+            message: validation.message,
+          })
+        );
+        setIsImporting(false);
+        return;
+      }
+
+      // Parse HTML and CSS with progress tracking
+      const result = await parseHTMLToNewsletterElements(htmlInput, cssInput, {
+        onProgress: (progress) => {
+          setImportProgress(progress);
+        },
+      });
+
+      if (result.success && result.elements.length > 0) {
+        // ✅ FIX: Replace all elements at once instead of adding one by one
+        dispatch(setElements(result.elements));
+
+        // Apply newsletter background color if present
+        if (
+          result.newsletterBackgroundColor &&
+          result.newsletterBackgroundColor !== "rgba(0, 0, 0, 0)"
+        ) {
+          console.log(
+            "Setting newsletter background color:",
+            result.newsletterBackgroundColor
+          );
+          dispatch(
+            setGlobalSettings({
+              ...globalSettings,
+              newsletterColor: result.newsletterBackgroundColor,
+            })
+          );
+        }
+
+        // Close modal and reset inputs
+        setShowHTMLImportModal(false);
+        setHtmlInput("");
+        setCssInput("");
+        setImportProgress({
+          stage: "idle",
+          message: "",
+          current: 0,
+          total: 0,
+        });
+
+        // Show success message
+        dispatch(
+          addNotification({
+            type: "success",
+            message: result.message,
+          })
+        );
+      } else {
+        dispatch(
+          addNotification({
+            type: "error",
+            message: result.message || "Failed to parse HTML",
+          })
+        );
+      }
+    } catch (error) {
+      console.error("Import error:", error);
+      dispatch(
+        addNotification({
+          type: "error",
+          message: `Import failed: ${error.message}`,
+        })
+      );
+    } finally {
+      setIsImporting(false);
+      setImportProgress({
+        stage: "idle",
+        message: "",
+        current: 0,
+        total: 0,
+      });
+    }
+  };
+
+  // Add this state with other useState declarations
+  const [showJsonImportModal, setShowJsonImportModal] = useState(false);
+  const [jsonInput, setJsonInput] = useState("");
+  const [jsonImportProgress, setJsonImportProgress] = useState({
+    stage: "idle",
+    message: "",
+    current: 0,
+    total: 0,
+  });
+
+  // Add JSON import handler
+  const handleJsonImport = async () => {
+    if (!jsonInput.trim()) {
+      dispatch(
+        addNotification({
+          type: "error",
+          message: "Please enter JSON template code",
+        })
+      );
+      return;
+    }
+
+    try {
+      setJsonImportProgress({
+        stage: "parsing",
+        message: "Parsing JSON template...",
+        current: 0,
+        total: 1,
+      });
+
+      // Parse JSON
+      let templateData;
+      try {
+        templateData = JSON.parse(jsonInput);
+      } catch (e) {
+        throw new Error(`Invalid JSON: ${e.message}`);
+      }
+
+      // Parse template
+      const result = parseJsonEmailTemplate(templateData);
+
+      if (result.success && result.elements.length > 0) {
+        // Set all parsed data to Redux
+        dispatch(setElements(result.elements));
+        dispatch(setGlobalSettings(result.globalSettings));
+        dispatch(setNewsletterName(result.name));
+
+        // Close modal
+        setShowJsonImportModal(false);
+        setJsonInput("");
+        setJsonImportProgress({
+          stage: "idle",
+          message: "",
+          current: 0,
+          total: 0,
+        });
+
+        dispatch(
+          addNotification({
+            type: "success",
+            message: result.message,
+          })
+        );
+      } else {
+        dispatch(
+          addNotification({
+            type: "error",
+            message: result.message || "Failed to parse JSON template",
+          })
+        );
+      }
+    } catch (error) {
+      console.error("JSON import error:", error);
+      dispatch(
+        addNotification({
+          type: "error",
+          message: `Import failed: ${error.message}`,
+        })
+      );
+    } finally {
+      setJsonImportProgress({
+        stage: "idle",
+        message: "",
+        current: 0,
+        total: 0,
+      });
+    }
+  };
+
+  // Add JSON Import Modal Component
+  const JsonImportModal = () => {
+    if (!showJsonImportModal) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+              <Code className="w-6 h-6 text-blue-600" />
+              Import JSON Email Template
+            </h3>
+            <button
+              onClick={() => setShowJsonImportModal(false)}
+              className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <p className="text-gray-600 mb-6 text-sm">
+            Paste your JSON email template with nested container structure.
+          </p>
+
+          {/* JSON Input */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              JSON Template *
+            </label>
+            <textarea
+              value={jsonInput}
+              onChange={(e) => setJsonInput(e.target.value)}
+              placeholder={`{
+  "name": "My Template",
+  "globalSettings": { "maxWidth": "600px" },
+  "elements": [
+    {
+      "type": "section",
+      "content": "Section",
+      "children": [
+        {
+          "type": "header",
+          "content": "Hello"
+        },
+        {
+          "type": "text",
+          "content": "Welcome to your email"
+        }
+      ]
+    }
+  ]
+}`}
+              className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm resize-none"
+              spellCheck="false"
+              disabled={jsonImportProgress.stage !== "idle"}
+            />
+          </div>
+
+          {/* Info Box */}
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>✨ Features:</strong>
+            </p>
+            <ul className="text-sm text-blue-700 mt-2 space-y-1 ml-4 list-disc">
+              <li>
+                Supports nested containers (section, grid, item, column, row)
+              </li>
+              <li>Automatic ID generation for all elements</li>
+              <li>Preserves all styles and properties</li>
+              <li>Global settings integration</li>
+              <li>Ready for export to email-safe HTML</li>
+            </ul>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => {
+                setShowJsonImportModal(false);
+                setJsonInput("");
+              }}
+              disabled={jsonImportProgress.stage !== "idle"}
+              className="px-6 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleJsonImport}
+              disabled={
+                jsonImportProgress.stage !== "idle" || !jsonInput.trim()
+              }
+              className={`
+              px-6 py-2.5 rounded-lg font-medium transition-all duration-300 flex items-center gap-2
+              ${
+                jsonImportProgress.stage !== "idle" || !jsonInput.trim()
+                  ? "bg-gray-400 text-white cursor-not-allowed"
+                  : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:shadow-lg hover:scale-105"
+              }
+            `}
+            >
+              {jsonImportProgress.stage !== "idle" ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Importing...
+                </>
+              ) : (
+                "Import JSON Template"
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ✅ UPDATED HTML/CSS IMPORT MODAL COMPONENT
+  const HTMLImportModal = () => {
+    if (!showHTMLImportModal) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+              <Code className="w-6 h-6 text-blue-600" />
+              Import HTML/CSS
+            </h3>
+            <button
+              onClick={() => setShowHTMLImportModal(false)}
+              className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <p className="text-gray-600 mb-6 text-sm">
+            Paste your HTML and CSS code below. Works with both modern HTML and
+            email-safe table layouts. Image URLs (including Cloudinary) will be
+            preserved.
+          </p>
+          {/* HTML Input */}
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              HTML Code *
+            </label>
+            <textarea
+              value={htmlInput}
+              onChange={(e) => setHtmlInput(e.target.value)}
+              placeholder="<div>Your HTML content here...</div>"
+              className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm resize-none"
+              spellCheck="false"
+              disabled={isImporting}
+            />
+          </div>
+
+          {/* CSS Input */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              CSS Code (Optional)
+            </label>
+            <textarea
+              value={cssInput}
+              onChange={(e) => setCssInput(e.target.value)}
+              placeholder=".your-class { color: blue; }"
+              className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm resize-none"
+              spellCheck="false"
+              disabled={isImporting}
+            />
+          </div>
+
+          {/* Progress Bar */}
+          {isImporting && importProgress.stage !== "idle" && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-blue-800">
+                  {importProgress.message}
+                </span>
+                <span className="text-xs text-blue-600">
+                  {importProgress.current}/{importProgress.total}
+                </span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{
+                    width: `${
+                      (importProgress.current /
+                        Math.max(importProgress.total, 1)) *
+                      100
+                    }%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Info Message */}
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <strong>✨ Features:</strong>
+            </p>
+            <ul className="text-sm text-blue-700 mt-2 space-y-1 ml-4 list-disc">
+              <li>Parses both modern HTML and email-safe table layouts</li>
+              <li>Preserves all image URLs (Cloudinary, external URLs)</li>
+              <li>Converts to canvas-ready absolute positioning</li>
+              <li>Extracts all styles and properties</li>
+              <li>Ready for export to email-safe HTML</li>
+            </ul>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => {
+                setShowHTMLImportModal(false);
+                setHtmlInput("");
+                setCssInput("");
+              }}
+              disabled={isImporting}
+              className="px-6 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleHTMLCSSImport}
+              disabled={isImporting || !htmlInput.trim()}
+              className={`
+              px-6 py-2.5 rounded-lg font-medium transition-all duration-300 flex items-center gap-2
+              ${
+                isImporting || !htmlInput.trim()
+                  ? "bg-gray-400 text-white cursor-not-allowed"
+                  : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:shadow-lg hover:scale-105"
+              }
+            `}
+            >
+              {isImporting ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Importing...
+                </>
+              ) : (
+                "Import & Convert"
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // ============================================================================
   // THUMBNAIL GENERATION
@@ -455,58 +981,44 @@ export default function EmailNewsletterEditor() {
 
   // Check for encoded data in the URL on initial load
   useEffect(() => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const templateUrl = urlParams.get("template");
-  const templateId = urlParams.get("templateId");
+    const urlParams = new URLSearchParams(window.location.search);
+    const templateId = urlParams.get("templateId");
 
-  if (templateUrl) {
-    azureBlobService
-      .fetchAzureData(templateUrl)
-      .then((tpl) => {
-        dispatch(setElements(tpl.elements));
-        dispatch(setGlobalSettings(tpl.globalSettings));
-        dispatch(setNewsletterName(tpl.name || "Untitled Newsletter"));
-        dispatch(
-          addNotification({
-            type: "success",
-            message: "Loaded from shared template!",
-          })
-        );
-      })
-      .catch((err) => {
-        console.error("Error loading shared template:", err);
-        dispatch(
-          addNotification({
-            type: "error",
-            message: "Failed to load shared template from Azure.",
-          })
-        );
-      });
-  } else if (templateId) {
-    dispatch(loadTemplateIntoEditor({ templateId }));
-  }
-}, [dispatch]);
-
+    // Load template by ID if provided
+    if (templateId) {
+      dispatch(loadTemplateIntoEditor({ templateId }));
+    }
+  }, [dispatch]);
 
   const location = useLocation();
+
   useEffect(() => {
     if (isDirty) {
-      setSaveTriggered(false); // Reset when user makes changes
+      setSaveTriggered(false);
     }
   }, [isDirty]);
+
+  // ✅ KEEP THIS ONE - It has the ref protection
+  const templateLoadedRef = useRef(false);
+
   useEffect(() => {
     const tpl = location?.state?.template;
     const action = location?.state?.action;
 
-    if (tpl && tpl.elements && tpl.globalSettings) {
-      setElements(tpl.elements);
-      setGlobalSettings(tpl.globalSettings);
-      setNewsletterName(tpl.name || "Untitled Newsletter");
-      setSelectedElementId(null);
+    // ✅ Skip if already loaded
+    if (templateLoadedRef.current) return;
 
-      // Store the template ID if available (for updates)
-      if (tpl._id) {
-        setCurrentTemplateId(tpl._id);
+    if (tpl && tpl.elements && tpl.globalSettings) {
+      templateLoadedRef.current = true; // ✅ Mark as loaded
+
+      // Load template data
+      dispatch(setElements(tpl.elements));
+      dispatch(setGlobalSettings(tpl.globalSettings));
+      dispatch(setNewsletterName(tpl.name || "Untitled Newsletter"));
+      dispatch(setSelectedElementId(null));
+
+      if (tpl.id) {
+        dispatch(setCurrentTemplateId(tpl.id));
       }
 
       if (action === "send") {
@@ -518,18 +1030,34 @@ export default function EmailNewsletterEditor() {
               tpl.name || newsletterName
             );
             navigator.clipboard.writeText(html);
-            showMessage("Email HTML ready to send (copied).");
+            dispatch(
+              addNotification({
+                type: "success",
+                message: "Email HTML ready to send (copied).",
+              })
+            );
           } catch (e) {
-            showMessage("Failed to prepare email HTML.");
+            dispatch(
+              addNotification({
+                type: "error",
+                message: "Failed to prepare email HTML.",
+              })
+            );
           }
         }, 100);
       } else {
-        showMessage("Template loaded.");
+        dispatch(
+          addNotification({
+            type: "success",
+            message: "Template loaded successfully.",
+          })
+        );
       }
 
+      // Clear location state
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, [location]);
+  }, [location, dispatch, newsletterName]);
 
   // Add this NEW useEffect for clearing state on cancel
   useEffect(() => {
@@ -611,10 +1139,13 @@ export default function EmailNewsletterEditor() {
 
   const getDefaultStyles = (type) => {
     const base = {
-      padding: "15px 20px",
-      position: "absolute",
-      width: type === "button" ? "auto" : "300px",
+      padding: "0",
+      // position: "absolute",
+      position: "relative", // ✅ ADD
+      width: type === "button" ? "auto" : "100%", // ✅ CHANGE from "300px"
       fontFamily: globalSettings.fontFamily || "Arial, sans-serif",
+      display: "block",
+      marginBottom: "16px", // Add spacing between elements
     };
 
     switch (type) {
@@ -749,13 +1280,13 @@ export default function EmailNewsletterEditor() {
       content: getDefaultContent(type),
       styles: {
         ...getDefaultStyles(type),
-        left: options.left || "50px",
-        top: options.top || "50px",
+        // left: options.left || "50px",
+        // top: options.top || "50px",
         ...options.styles,
       },
       link: type === "button" ? options.link : undefined,
       icons: type === "social" ? options.icons || [...defaultIcons] : undefined,
-      children: options.children || undefined,
+      children: options.children || [], // ✅ ADD: Support for nested children
     };
 
     dispatch(addElementAction(newElement));
@@ -767,39 +1298,23 @@ export default function EmailNewsletterEditor() {
   };
 
   const updateElementStyle = (id, styleUpdates) => {
-    // Find the element to preserve its current position
     const element = elements.find((el) => el.id === id);
+    if (!element) return;
 
-    if (!element) {
-      dispatch(updateElementAction({ id, updates: { styles: styleUpdates } }));
-      return;
-    }
+    // Remove position-related properties
+    const { left, top, position, ...validStyles } = styleUpdates;
 
-    // For shape elements, ALWAYS preserve position and size
-    if (element.type === "shape") {
-      const preservedStyles = {
-        position: element.styles.position || "absolute",
-        left: element.styles.left,
-        top: element.styles.top,
-      };
+    const mergedStyles = {
+      ...element.styles,
+      ...validStyles,
+    };
 
-      // Merge: existing styles + new updates + preserved position (preserved takes priority)
-      const mergedStyles = {
-        ...element.styles,
-        ...styleUpdates,
-        ...preservedStyles,
-      };
-
-      dispatch(
-        updateElementAction({
-          id,
-          updates: { styles: mergedStyles },
-        })
-      );
-    } else {
-      // For non-shape elements, regular update
-      dispatch(updateElementAction({ id, updates: { styles: styleUpdates } }));
-    }
+    dispatch(
+      updateElementAction({
+        id,
+        updates: { styles: mergedStyles },
+      })
+    );
   };
 
   const handleDeleteElement = (id) => {
@@ -810,94 +1325,138 @@ export default function EmailNewsletterEditor() {
     dispatch(duplicateElementAction(id));
   };
 
- const handleImageUpload = async (id, file) => {
-  if (!file || !file.type.startsWith("image")) return;
+  // In EmailNewsletterEditor.jsx
 
-  try {
-    const workId = currentTemplateId || "default"; // Use current template ID or default
-    const result = await azureBlobService.uploadImage(file, null, {
-      folder: `work_${workId}/images`,
-      container: "templates",
-    });
-    
-    if (result.secure_url) {
+  // ✅ FIXED handleImageUpload - Use templateService instead of direct fetch
+  const handleImageUpload = async (elementId, file) => {
+    try {
+      console.log("🔄 Starting image upload to Cloudinary...");
+      console.log("File:", file.name, file.type, file.size);
+
+      // Validate file
+      if (!file.type.startsWith("image/")) {
+        dispatch(
+          addNotification({
+            type: "error",
+            message: "Please select a valid image file",
+          })
+        );
+        return;
+      }
+
+      // Show loading notification
       dispatch(
-        updateElementAction({ id, updates: { content: result.secure_url } })
+        addNotification({
+          type: "info",
+          message: "Uploading image to Cloudinary...",
+        })
       );
+
+      // Convert file to base64
+      const base64Image = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      console.log("✅ File converted to base64, uploading to backend...");
+
+      // ✅ Use templateService instead of direct fetch
+      const response = await templateService.uploadImage(base64Image);
+
+      console.log("✅ Upload successful:", response);
+
+      // ✅ Extract URL from response
+      const imageUrl = response.data?.url || response.url;
+
+      if (!imageUrl) {
+        throw new Error("No URL returned from upload");
+      }
+
+      // ✅ Update element with Cloudinary URL
+      handleUpdateElement(elementId, {
+        content: imageUrl,
+      });
+
+      // Show success notification
       dispatch(
         addNotification({
           type: "success",
-          message: "Image uploaded successfully!",
+          message: "Image uploaded to Cloudinary successfully!",
+        })
+      );
+
+      console.log("✅ Element updated with Cloudinary URL:", imageUrl);
+    } catch (error) {
+      console.error("❌ Upload error:", error);
+
+      dispatch(
+        addNotification({
+          type: "error",
+          message: `Failed to upload image: ${error.message}`,
         })
       );
     }
-  } catch (error) {
-    console.error("Image upload error:", error);
-    dispatch(
-      addNotification({
-        type: "error",
-        message: "Failed to upload image to Azure",
-      })
-    );
-  }
-};
+  };
+  // ✅ Helper function to compress images
+  const compressImage = (file, maxWidth = 800, quality = 0.7) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
 
-  const handleDragStart = (e, id) => {
-    const index = elements.findIndex((el) => el.id === id);
-    if (index === -1) return;
-    dragItem.current = index;
-    e.dataTransfer.effectAllowed = "move";
+          // Resize if image is larger than maxWidth
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to blob with compression
+          canvas.toBlob(
+            (blob) => {
+              resolve(blob);
+            },
+            "image/jpeg", // Convert to JPEG for better compression
+            quality
+          );
+        };
+        img.onerror = reject;
+      };
+      reader.onerror = reject;
+    });
   };
 
-  const handleDragEnter = (e, id) => {
-    const newIndex = elements.findIndex((el) => el.id === id);
-    if (dragItem.current === null || dragItem.current === newIndex) return;
-
-    const newList = [...elements];
-    const draggedItem = newList[dragItem.current];
-    newList.splice(dragItem.current, 1);
-    newList.splice(newIndex, 0, draggedItem);
-    dragItem.current = newIndex;
-    dispatch(setElements(newList));
-  };
-
-  const handleDragEnd = () => {
-    dragItem.current = null;
-  };
-
-  // const saveNewsletter = () => {
-  //   const data = {
-  //     name: newsletterName,
-  //     elements,
-  //     globalSettings,
-  //     lastSaved: new Date().toISOString(),
-  //   };
-
-  //   console.log("Saving:", data);
-  //   setShowSaveAlert(true);
-  //   setTimeout(() => setShowSaveAlert(false), 2000);
-  // };
+ 
 
   const handleShareLink = async () => {
-  try {
-    setIsSharing(true);
-    const dataToShare = { name: newsletterName, elements, globalSettings };
+    try {
+      setIsSharing(true);
 
-    const blobName = `shared/newsletter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}.json`;
-    
-    const azureData = await azureBlobService.uploadRawData(
-      dataToShare,
-      blobName,
-      {
-        folder: "shared",
-        container: "templates",
+      // ✅ Share using template ID instead of Cloudinary URL
+      if (!currentTemplateId) {
+        dispatch(
+          addNotification({
+            type: "error",
+            message: "Please save the template before sharing.",
+          })
+        );
+        return;
       }
-    );
 
-    if (azureData.secure_url) {
-      const url = `${window.location.origin}${
-        window.location.pathname
-      }?template=${encodeURIComponent(azureData.secure_url)}`;
+      const url = `${window.location.origin}${window.location.pathname}?templateId=${currentTemplateId}`;
       await navigator.clipboard.writeText(url);
 
       dispatch(
@@ -906,19 +1465,18 @@ export default function EmailNewsletterEditor() {
           message: "Share link copied to clipboard!",
         })
       );
+    } catch (error) {
+      dispatch(
+        addNotification({
+          type: "error",
+          message: "Failed to create share link",
+        })
+      );
+    } finally {
+      setIsSharing(false);
     }
-  } catch (error) {
-    console.error("Share error:", error);
-    dispatch(
-      addNotification({
-        type: "error",
-        message: "Failed to create share link",
-      })
-    );
-  } finally {
-    setIsSharing(false);
-  }
-};
+  };
+
   const prepareForExport = () => {
     exportLinkRects = [];
 
@@ -929,52 +1487,33 @@ export default function EmailNewsletterEditor() {
 
     const exportContainer = document.createElement("div");
     exportContainer.style.cssText = `
-      width: ${globalSettings.maxWidth || "600px"};
-      min-height: ${globalSettings.minHeight || "800px"};
-      background-color: ${globalSettings.newsletterColor || "#ffffff"};
-      font-family: ${globalSettings.fontFamily || "Arial, sans-serif"};
-      padding: 0;
-      margin: 0;
-      box-sizing: border-box;
-      position: relative;
-      overflow: visible;
-      border: none;
-      outline: none;
-      box-shadow: none;
-      transform: none;
-      transform-origin: top left;
-    `;
+    width: ${globalSettings.maxWidth || "600px"};
+    min-height: ${globalSettings.minHeight || "800px"};
+    background-color: ${globalSettings.newsletterColor || "#ffffff"};
+    font-family: ${globalSettings.fontFamily || "Arial, sans-serif"};
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+    position: relative;
+    overflow: visible;
+    border: none;
+    outline: none;
+    box-shadow: none;
+    transform: none;
+    transform-origin: top left;
+     display: block; // ✅ ADD
+  `;
 
+    // Recursively create export elements for ALL elements including nested containers
     elements.forEach((element) => {
-      const elementDiv = createExportElement(element);
+      const elementDiv = createExportElement(element, globalSettings, false);
       if (elementDiv) {
-        if (element.styles?.position === "absolute") {
-          elementDiv.style.position = "absolute";
-          elementDiv.style.left = element.styles.left || "0px";
-          elementDiv.style.top = element.styles.top || "0px";
-          if (element.styles?.width)
-            elementDiv.style.width = element.styles.width;
-          if (element.styles?.height)
-            elementDiv.style.height = element.styles.height;
-
-          // âœ… Preserve rotation for shapes
-        if (element.type === "shape" && element.styles?.rotation) {
-          const rotation = String(element.styles.rotation).includes("deg")
-            ? element.styles.rotation
-            : element.styles.rotation + "deg";
-          elementDiv.style.transform = `rotate(${rotation})`;
-          elementDiv.style.transformOrigin = "center center";
-        }
-        }
         exportContainer.appendChild(elementDiv);
       }
     });
 
-    // normalizeLayoutTransforms(exportContainer);
-
     return exportContainer;
   };
-
   const buildSpacing = (styles, property) => {
     const top = styles[`${property}Top`] || "0px";
     const right = styles[`${property}Right`] || "0px";
@@ -998,7 +1537,11 @@ export default function EmailNewsletterEditor() {
     return elementStyles?.border || "none";
   };
 
-  const createExportElement = (element) => {
+  const createExportElement = (
+    element,
+    globalSettings = {},
+    isNested = false
+  ) => {
     const div = document.createElement("div");
     const styles = element.styles || {};
 
@@ -1006,68 +1549,69 @@ export default function EmailNewsletterEditor() {
     const elementScale = extractScale(styles.transform || styles.scale);
 
     div.style.cssText = `
-      position: absolute;
-      left: ${styles.left || "0px"};
-      top: ${styles.top || "0px"};
-      width: ${styles.width || "auto"};
-      height: ${styles.height || "auto"};
-      margin: 0;
-      padding: 0;
-      background: transparent;
-      border: none;
-      box-shadow: none;
-      box-sizing: border-box;
-    `;
-stripLayoutTransforms(div);
-
-// Re-apply rotation / transform to the wrapper because stripLayoutTransforms() clears transforms.
-// Prefer explicit styles.rotation field if present, otherwise fall back to any rotate() inside styles.transform or styles.rotate
-const rotationFromStyles =
-  styles?.rotation
-    ? (String(styles.rotation).includes('deg') ? styles.rotation : styles.rotation + 'deg')
-    : null;
-
-let rotationValue = 'none';
-if (rotationFromStyles) {
-  rotationValue = `rotate(${rotationFromStyles})`;
-} else if (styles?.transform && /rotate\(/i.test(styles.transform)) {
-  // If full transform contains rotate(...) use it
-  rotationValue = styles.transform.match(/rotate\([^)]+\)/i)[0];
-} else if (styles?.rotate) {
-  rotationValue = `rotate(${String(styles.rotate).includes('deg') ? styles.rotate : styles.rotate + 'deg'})`;
-}
-
-if (rotationValue && rotationValue !== 'none') {
-  div.style.transform = rotationValue;
-  div.style.transformOrigin = 'center center';
-  // hint to browser and dom-to-image to rasterize transform properly
-  div.style.willChange = 'transform';
-}
+   position: relative;
+    left: ${styles.left || "0px"};
+    top: ${styles.top || "0px"};
+     width: 100%;
+    height: ${styles.height || "auto"};
+     margin: ${buildSpacing(styles, "margin") || "0 0 16px 0"};
+    padding: ${buildSpacing(styles, "padding") || "0"};
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    box-sizing: border-box;
+  `;
+    stripLayoutTransforms(div);
 
     switch (element.type) {
+      case "section": {
+        const section = document.createElement("div");
+        section.style.cssText = `
+        position: relative;
+        width: 100%;
+        background-color: ${styles.backgroundColor || "#f9f9f9"};
+        border: ${getBorderStyles(styles)};
+        border-radius: ${composeCornerRadius(styles, "8px")};
+        padding: ${buildSpacing(styles, "padding") || "20px"};
+        margin: ${buildSpacing(styles, "margin") || "20px 0"};
+        box-shadow: ${styles.boxShadow || "none"};
+        display: block;
+        box-sizing: border-box;
+      `;
+
+        // ✅ ADD: Render nested children
+        if (element.children && element.children.length > 0) {
+          element.children.forEach((child) => {
+            const childElement = createExportElement(
+              child,
+              globalSettings,
+              true
+            );
+            if (childElement) {
+              childElement.style.marginBottom = "16px";
+              section.appendChild(childElement);
+            }
+          });
+        }
+
+        stripLayoutTransforms(section);
+        return section;
+      }
+
       case "shape": {
         const shapeType = styles?.shapeType || "rectangle";
         const shapeWidth = parseInt(styles?.width) || 200;
         const shapeHeight = parseInt(styles?.height) || 200;
-
         const isPoly = isPolygonShape(shapeType);
         const shapeRadius = getShapeBorderRadius(shapeType, styles);
         const shapeClip = getShapeClipPath(shapeType);
 
-        // ✅ Calculate rotation for WRAPPER (matching editor)
-  const rotationValue = styles?.rotation
-    ? `rotate(${
-        String(styles.rotation).includes("deg")
-          ? styles.rotation
-          : styles.rotation + "deg"
-      })`
-    : "none";
         div.style.width = `${shapeWidth}px`;
         div.style.height = `${shapeHeight}px`;
         div.style.background = "transparent";
         div.style.boxSizing = "border-box";
-        div.style.transform = rotationValue; // ✅ On wrapper, not inner div
-  div.style.transformOrigin = "center center"; // ✅ Center rotation
+        div.style.transform = "none";
+        div.style.transformOrigin = "top left";
 
         const getFillStyle = () => {
           const fillType = styles?.fillType || "solid";
@@ -1087,280 +1631,252 @@ if (rotationValue && rotationValue !== 'none') {
           }
         };
 
-        // const getBorderStyles = (s) => {
-        //   if (parseInt(s?.borderWidth) > 0) {
-        //     return `${s.borderWidth} ${s.borderStyle || "solid"} ${
-        //       s.borderColor || "#000"
-        //     }`;
-        //   }
-        //   return "none";
-        // };
-
         const container = document.createElement("div");
         container.style.cssText = `
-          position: relative;
-          width: ${shapeWidth}px;
-          height: ${shapeHeight}px;
-          display: block;
-          margin: ${buildSpacing(styles, "margin") || "0"};
-          padding: ${buildSpacing(styles, "padding") || "0"};
-          box-sizing: border-box;
-          opacity: ${styles?.opacity || "1"};
-        `;
+        position: relative;
+        width: ${shapeWidth}px;
+        height: ${shapeHeight}px;
+        display: block;
+        margin: ${buildSpacing(styles, "margin") || "0"};
+        padding: ${buildSpacing(styles, "padding") || "0"};
+        box-sizing: border-box;
+        opacity: ${styles?.opacity || "1"};
+      `;
 
         const shapeDiv = document.createElement("div");
-
         shapeDiv.style.cssText = `
-          width: ${shapeWidth}px;
-          height: ${shapeHeight}px;
-          background: ${getFillStyle()};
-          ${isPoly ? "clip-path:" + shapeClip + ";" : "clip-path:none;"} 
-          ${
-            isPoly
-              ? "-webkit-clip-path:" + shapeClip + ";"
-              : "-webkit-clip-path:none;"
-          }
-          ${
-            !isPoly
-              ? "border-radius:" + shapeRadius + ";"
-              : "border-radius:0px;"
-          }
-          border: ${getBorderStyles(styles)};
-          box-shadow: ${styles?.boxShadow || "none"};
-          box-sizing: border-box;
-           
-        `;
+        width: ${shapeWidth}px;
+        height: ${shapeHeight}px;
+        background: ${getFillStyle()};
+        ${isPoly ? "clip-path:" + shapeClip + ";" : "clip-path:none;"}
+        ${
+          isPoly
+            ? "-webkit-clip-path:" + shapeClip + ";"
+            : "-webkit-clip-path:none;"
+        }
+        ${!isPoly ? "border-radius:" + shapeRadius + ";" : "border-radius:0px;"}
+        border: ${getBorderStyles(styles)};
+        box-shadow: ${styles?.boxShadow || "none"};
+        box-sizing: border-box;
+        filter: ${styles?.filter || "none"};
+        transform: ${styles?.rotation ? `rotate(${styles.rotation})` : "none"};
+      `;
 
         container.appendChild(shapeDiv);
-        // stripLayoutTransforms(container);
+        stripLayoutTransforms(container);
         div.appendChild(container);
         break;
       }
 
-      case "header":
+      case "heading": {
         const header = document.createElement("h2");
-        header.textContent = element.content || "Header";
+        header.textContent = element.content || "Heading";
         const headerWeight = normalizeWeight(styles.fontWeight);
         header.style.cssText = `
-          position: absolute;
-          left: 0;
-          top: 0;
-          margin: 0;
-          padding: ${buildSpacing(styles, "padding") || "0"};
-          font-size: ${styles.fontSize || "28px"};
-          font-weight: ${headerWeight};
-          font-variation-settings: "wght" ${headerWeight};
-          color: ${styles.color || "#1a1a1a"};
-          text-align: ${styles.textAlign || "left"};
-          line-height: ${styles.lineHeight || "1.4"};
-          width: ${styles.width || "auto"};
-          height: ${styles.height || "auto"};
-          background-color: ${styles.backgroundColor || "transparent"};
-          display: block;
-          border: ${getBorderStyles(styles)};
-          border-radius: ${composeCornerRadius(styles, "0")};
-          box-shadow: ${styles.boxShadow || "none"};
-          opacity: ${styles.opacity || "1"};
-          font-family: ${
-            styles.fontFamily ||
-            globalSettings.fontFamily ||
-            "Arial, sans-serif"
-          };
-          box-sizing: border-box;
-          white-space: pre-wrap;
-          font-style: ${styles.fontStyle || "normal"};
-          text-decoration: ${styles.textDecoration || "none"};
-          text-shadow: ${styles.textShadow || "none"};
-          letter-spacing: ${styles.letterSpacing || "normal"};
-          word-spacing: ${styles.wordSpacing || "normal"};
-          text-indent: ${styles.textIndent || "0"};
-          text-transform: ${styles.textTransform || "none"};
-        `;
+        position: absolute;
+        left: 0;
+        top: 0;
+        margin: 0;
+        padding: ${buildSpacing(styles, "padding") || "0"};
+        font-size: ${styles.fontSize || "28px"};
+        font-weight: ${headerWeight};
+        color: ${styles.color || "#1a1a1a"};
+        text-align: ${styles.textAlign || "left"};
+        line-height: ${styles.lineHeight || "1.4"};
+        width: ${styles.width || "auto"};
+        height: ${styles.height || "auto"};
+        background-color: ${styles.backgroundColor || "transparent"};
+        display: block;
+        border: ${getBorderStyles(styles)};
+        border-radius: ${composeCornerRadius(styles, "0")};
+        box-shadow: ${styles.boxShadow || "none"};
+        opacity: ${styles.opacity || "1"};
+        font-family: ${
+          styles.fontFamily || globalSettings.fontFamily || "Arial, sans-serif"
+        };
+        box-sizing: border-box;
+        white-space: pre-wrap;
+        font-style: ${styles.fontStyle || "normal"};
+        text-decoration: ${styles.textDecoration || "none"};
+        text-shadow: ${styles.textShadow || "none"};
+        letter-spacing: ${styles.letterSpacing || "normal"};
+        word-spacing: ${styles.wordSpacing || "normal"};
+        text-indent: ${styles.textIndent || "0"};
+        text-transform: ${styles.textTransform || "none"};
+        filter: ${styles.filter || "none"};
+      `;
         stripLayoutTransforms(header);
         div.appendChild(header);
         break;
+      }
 
-      case "text":
+      case "text": {
         const text = document.createElement("div");
         text.textContent = element.content || "Text content";
         const textWeight = normalizeWeight(styles.fontWeight);
         text.style.cssText = `
-          position: absolute;
-          left: 0;
-          top: 0;
-          margin: 0;
-          padding: ${buildSpacing(styles, "padding") || "0"};
-          font-size: ${styles.fontSize || "16px"};
-          font-weight: ${textWeight};
-          font-variation-settings: "wght" ${textWeight};
-          color: ${styles.color || "#333333"};
-          line-height: ${styles.lineHeight || "1.6"};
-          text-align: ${styles.textAlign || "left"};
-          width: ${styles.width || "auto"};
-          height: ${styles.height || "auto"};
-          background-color: ${styles.backgroundColor || "transparent"};
-          display: block;
-          border-radius: ${composeCornerRadius(styles, "0")};
-          border: ${getBorderStyles(styles)};
-          box-shadow: ${styles.boxShadow || "none"};
-          opacity: ${styles.opacity || "1"};
-          font-family: ${
-            styles.fontFamily ||
-            globalSettings.fontFamily ||
-            "Arial, sans-serif"
-          };
-          box-sizing: border-box;
-          white-space: pre-wrap;
-          font-style: ${styles.fontStyle || "normal"};
-          text-decoration: ${styles.textDecoration || "none"};
-          text-shadow: ${styles.textShadow || "none"};
-          letter-spacing: ${styles.letterSpacing || "normal"};
-          word-spacing: ${styles.wordSpacing || "normal"};
-          text-indent: ${styles.textIndent || "0"};
-          text-transform: ${styles.textTransform || "none"};
-          vertical-align: ${styles.verticalAlign || "baseline"};
-        `;
+        position: absolute;
+        left: 0;
+        top: 0;
+        margin: 0;
+        padding: ${buildSpacing(styles, "padding") || "0"};
+        font-size: ${styles.fontSize || "16px"};
+        font-weight: ${textWeight};
+        color: ${styles.color || "#333333"};
+        line-height: ${styles.lineHeight || "1.6"};
+        text-align: ${styles.textAlign || "left"};
+        width: ${styles.width || "auto"};
+        height: ${styles.height || "auto"};
+        background-color: ${styles.backgroundColor || "transparent"};
+        display: block;
+        border-radius: ${composeCornerRadius(styles, "0")};
+        border: ${getBorderStyles(styles)};
+        box-shadow: ${styles.boxShadow || "none"};
+        opacity: ${styles.opacity || "1"};
+        font-family: ${
+          styles.fontFamily || globalSettings.fontFamily || "Arial, sans-serif"
+        };
+        box-sizing: border-box;
+        white-space: pre-wrap;
+        font-style: ${styles.fontStyle || "normal"};
+        text-decoration: ${styles.textDecoration || "none"};
+        text-shadow: ${styles.textShadow || "none"};
+        letter-spacing: ${styles.letterSpacing || "normal"};
+        word-spacing: ${styles.wordSpacing || "normal"};
+        text-indent: ${styles.textIndent || "0"};
+        text-transform: ${styles.textTransform || "none"};
+        vertical-align: ${styles.verticalAlign || "baseline"};
+        filter: ${styles.filter || "none"};
+      `;
         stripLayoutTransforms(text);
         div.appendChild(text);
         break;
+      }
 
-      case "button":
+      case "button": {
         const buttonLink = document.createElement("a");
         buttonLink.textContent = element.content || "Button";
         buttonLink.href = element.link || "#";
         const buttonWeight = normalizeWeight(styles.fontWeight);
         buttonLink.style.cssText = `
-          display: inline-block;
-          background-color: ${styles.backgroundColor || "#007bff"};
-          color: ${styles.color || "#ffffff"};
-          padding: ${buildSpacing(styles, "padding") || "12px 24px"};
-          margin: ${buildSpacing(styles, "margin") || "0"};
-          text-decoration: none;
-          border-radius: ${composeCornerRadius(styles, "6px")};
-          font-size: ${styles.fontSize || "16px"};
-          font-weight: ${buttonWeight};
-          font-variation-settings: "wght" ${buttonWeight};
-          font-style: ${styles.fontStyle || "normal"};
-          border: ${getBorderStyles(styles)};
-          text-align: center;
-          box-shadow: ${styles.boxShadow || "none"};
-          opacity: ${styles.opacity || "1"};
-          box-sizing: border-box;
-          line-height: ${styles.lineHeight || "1.4"};
-          font-family: ${
-            styles.fontFamily ||
-            globalSettings.fontFamily ||
-            "Arial, sans-serif"
-          };
-          cursor: pointer;
-          text-shadow: ${styles.textShadow || "none"};
-          letter-spacing: ${styles.letterSpacing || "normal"};
-          text-transform: ${styles.textTransform || "none"};
-          vertical-align: ${styles.verticalAlign || "middle"};
-          transition: ${styles.transition || "none"};
-        `;
+        position: absolute;
+        left: 0;
+        top: 0;
+        display: inline-block;
+        background-color: ${styles.backgroundColor || "#007bff"};
+        color: ${styles.color || "#ffffff"};
+        padding: ${buildSpacing(styles, "padding") || "12px 24px"};
+        margin: 0;
+        text-decoration: none;
+        border-radius: ${composeCornerRadius(styles, "6px")};
+        font-size: ${styles.fontSize || "16px"};
+        font-weight: ${buttonWeight};
+        font-style: ${styles.fontStyle || "normal"};
+        border: ${getBorderStyles(styles)};
+        text-align: center;
+        box-shadow: ${styles.boxShadow || "none"};
+        opacity: ${styles.opacity || "1"};
+        box-sizing: border-box;
+        line-height: ${styles.lineHeight || "1.4"};
+        font-family: ${
+          styles.fontFamily || globalSettings.fontFamily || "Arial, sans-serif"
+        };
+        cursor: pointer;
+        text-shadow: ${styles.textShadow || "none"};
+        letter-spacing: ${styles.letterSpacing || "normal"};
+        text-transform: ${styles.textTransform || "none"};
+        vertical-align: ${styles.verticalAlign || "middle"};
+        transition: ${styles.transition || "none"};
+        width: ${styles.width || "auto"};
+        height: ${styles.height || "auto"};
+        filter: ${styles.filter || "none"};
+      `;
         stripLayoutTransforms(buttonLink);
         div.appendChild(buttonLink);
-
-        const pad = (val, fallback = "0px") =>
-          parseFloat((val || fallback).toString());
-        const padTop = pad(styles.paddingTop, "12px");
-        const padRight = pad(styles.paddingRight, "24px");
-        const padBottom = pad(styles.paddingBottom, "12px");
-        const padLeft = pad(styles.paddingLeft, "24px");
-        const fontSize = pad(styles.fontSize, "16px");
-
-        const text1 = element.content || "Button";
-        const charW = fontSize * 0.6;
-        const textW = Math.max(40, text1.length * charW);
-        const widthPx =
-          parseFloat(styles.width || textW + padLeft + padRight) || 150;
-        const heightPx =
-          parseFloat(styles.height || fontSize + padTop + padBottom) || 40;
-
-        const leftPx = parseFloat(styles.left || "0");
-        const topPx = parseFloat(styles.top || "0");
-        pushLinkRect(buttonLink.href, leftPx, topPx, widthPx, heightPx);
+        pushLinkRect(
+          buttonLink.href,
+          parseFloat(styles.left || 0),
+          parseFloat(styles.top || 0),
+          parseFloat(styles.width || 150),
+          parseFloat(styles.height || 40)
+        );
         break;
+      }
 
-case "image": {
-  const imgContainer = document.createElement("div");
-  const img = document.createElement("img");
+      case "image": {
+        const container = document.createElement("div");
+        const img = document.createElement("img");
 
-  // Extract rotation and scale
-  const rotation = extractRotation(styles.transform || styles.rotate);
-  const scale = extractScale(styles.transform || styles.scale);
+        const imageSrc = element.content || "";
 
-  // Base image setup
-  img.src = element.content || "";
-  img.alt = "Image Element";
-  img.style.cssText = `
-    width: 100%;
-    height: 100%;
-    object-fit: ${styles.objectFit || "contain"};
-    display: block;
-    border-radius: ${composeCornerRadius(styles, "0px")};
-  `;
+        // ✅ FIXED: Better rotation extraction
+        const rotation =
+          styles?.rotation ||
+          extractRotation(styles.transform || styles.rotate) ||
+          0;
 
-  // Container handles border + rotation (like in your working file)
-  imgContainer.style.cssText = `
+        // ✅ Outer container: rotates + holds border, shadow, opacity
+        container.style.cssText = `
     position: relative;
     display: inline-block;
-    width: ${styles.width || "300px"};
-    height: ${styles.height || "200px"};
-    box-sizing: border-box;
+    width: ${styles.width || "auto"};
+    height: ${styles.height || "auto"};
     overflow: visible;
     border: ${getBorderStyles(styles)};
-    border-radius: ${composeCornerRadius(styles, "0px")};
+    border-radius: ${composeCornerRadius(styles, "0")};
     box-shadow: ${styles.boxShadow || "none"};
     background-color: ${styles.backgroundColor || "transparent"};
-    transform: ${styles.transform || `rotate(${rotation}deg) scale(${scale})`};
-    transform-origin: ${styles.transformOrigin || "center center"};
     opacity: ${styles.opacity || "1"};
+    transform: rotate(${rotation}deg);
+    transform-origin: ${styles.transformOrigin || "center center"};
+    box-sizing: border-box;
+    will-change: transform;
   `;
 
-  imgContainer.appendChild(img);
+        // ✅ Image styling inside container
+        img.src = imageSrc;
+        img.alt = "Image";
+        img.style.cssText = `
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: ${styles.objectFit || "cover"};
+    border-radius: inherit;
+    box-sizing: border-box;
+  `;
 
-  // If image has a link
-  if (element.link && element.link.trim() !== "") {
-    const link = document.createElement("a");
-    link.href = element.link;
-    link.target = "_blank";
-    link.style.display = "inline-block";
-    link.style.width = "100%";
-    link.style.height = "100%";
-    link.appendChild(imgContainer);
-    div.appendChild(link);
-  } else {
-    div.appendChild(imgContainer);
-  }
+        container.appendChild(img);
 
-  // Keep transforms during export (do not strip rotation)
-// ✅ Preserve image rotation for export preview
-// Don't strip transforms for rotated or scaled images
-if (!styles.transform && !styles.rotate) {
-  stripLayoutTransforms(imgContainer);
-}
+        // ✅ If the image has a hyperlink
+        if (element.link && element.link.trim() !== "") {
+          const link = document.createElement("a");
+          link.href = element.link;
+          link.target = "_blank";
+          link.style.cssText = `
+      display: inline-block;
+      width: 100%;
+      height: 100%;
+      text-decoration: none;
+      transform: rotate(${rotation}deg);
+      transform-origin: ${styles.transformOrigin || "center center"};
+    `;
+          link.appendChild(container);
+          div.appendChild(link);
+        } else {
+          div.appendChild(container);
+        }
 
+        // ✅ DON'T strip transforms for images
+        // stripLayoutTransforms is not called here anymore
 
-  // Optional visual effects
-  if (styles.filter && styles.filter !== "none") {
-    imgContainer.style.filter = styles.filter;
-  }
+        // ✅ Ensure image displays properly in export preview
+        div.style.overflow = "visible";
+        container.style.overflow = "visible";
 
-  // Background image/pattern support
-  if (styles.backgroundImage && styles.backgroundImage !== "none") {
-    imgContainer.style.backgroundImage = styles.backgroundImage;
-    imgContainer.style.backgroundSize = styles.backgroundSize || "cover";
-    imgContainer.style.backgroundPosition =
-      styles.backgroundPosition || "center";
-  }
+        break;
+      }
 
-  break;
-}
-
-  
-      case "divider":
+      case "divider": {
         div.style.backgroundColor = styles.backgroundColor || "#d1d5db";
         div.style.borderRadius = composeCornerRadius(styles, "0");
         div.style.boxShadow = styles.boxShadow || "none";
@@ -1384,37 +1900,37 @@ if (!styles.transform && !styles.rotate) {
           dividerText.textContent = element.content;
           const dividerWeight = normalizeWeight(styles.fontWeight);
           dividerText.style.cssText = `
-            position: absolute;
-            top: -8px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: ${
-              styles.labelBackgroundColor ||
-              globalSettings.newsletterColor ||
-              "#ffffff"
-            };
-            padding: 0 12px;
-            font-size: ${styles.fontSize || "14px"};
-            font-weight: ${dividerWeight};
-            font-variation-settings: "wght" ${dividerWeight};
-            color: ${styles.color || "#666"};
-            font-style: ${styles.fontStyle || "normal"};
-            border-radius: ${composeCornerRadius(styles, "0")};
-            font-family: ${
-              styles.fontFamily ||
-              globalSettings.fontFamily ||
-              "Arial, sans-serif"
-            };
-            display: inline-block;
-            text-shadow: ${styles.textShadow || "none"};
-            letter-spacing: ${styles.letterSpacing || "normal"};
-          `;
+          position: absolute;
+          top: -8px;
+          left: 50%;
+          transform: translateX(-50%);
+          background-color: ${
+            styles.labelBackgroundColor ||
+            globalSettings.newsletterColor ||
+            "#ffffff"
+          };
+          padding: 0 12px;
+          font-size: ${styles.fontSize || "14px"};
+          font-weight: ${dividerWeight};
+          color: ${styles.color || "#666"};
+          font-style: ${styles.fontStyle || "normal"};
+          border-radius: ${composeCornerRadius(styles, "0")};
+          font-family: ${
+            styles.fontFamily ||
+            globalSettings.fontFamily ||
+            "Arial, sans-serif"
+          };
+          display: inline-block;
+          text-shadow: ${styles.textShadow || "none"};
+          letter-spacing: ${styles.letterSpacing || "normal"};
+        `;
           stripLayoutTransforms(dividerText);
           div.appendChild(dividerText);
         }
         break;
+      }
 
-      case "social":
+      case "social": {
         div.style.textAlign = styles.textAlign || "center";
         div.style.backgroundColor =
           styles.backgroundColor && styles.backgroundColor !== "transparent"
@@ -1433,53 +1949,36 @@ if (!styles.transform && !styles.rotate) {
         if (element.icons && element.icons.length > 0) {
           const iconsContainer = document.createElement("div");
           iconsContainer.style.cssText = `
-            display: flex;
-            gap: ${styles.gap || "12px"};
-            justify-content: ${
-              styles.textAlign === "left"
-                ? "flex-start"
-                : styles.textAlign === "right"
-                ? "flex-end"
-                : "center"
-            };
-            align-items: center;
-            height: 100%;
-            width: 100%;
-          `;
+          display: flex;
+          gap: ${styles.gap || "12px"};
+          justify-content: ${
+            styles.textAlign === "left"
+              ? "flex-start"
+              : styles.textAlign === "right"
+              ? "flex-end"
+              : "center"
+          };
+          align-items: center;
+          height: 100%;
+          width: 100%;
+        `;
           stripLayoutTransforms(iconsContainer);
 
-          const gapPx = parseFloat((styles.gap || "12px").toString());
-          const iconSize = 24;
-          const iconBox = 28;
-          const containerWidth = parseFloat(styles.width || "300") || 300;
-          const iconsCount = element.icons.length;
-          const totalWidth = iconsCount * iconBox + (iconsCount - 1) * gapPx;
-
-          let offsetX = 0;
-          const align = (styles.textAlign || "center").toLowerCase();
-          if (align === "center")
-            offsetX = Math.max(0, (containerWidth - totalWidth) / 2);
-          if (align === "right")
-            offsetX = Math.max(0, containerWidth - totalWidth);
-
-          const baseLeft = parseFloat(styles.left || "0");
-          const baseTop = parseFloat(styles.top || "0");
-
-          element.icons.forEach((icon, i) => {
+          element.icons.forEach((icon) => {
             const info = SOCIAL_SVGS[icon.platform?.toLowerCase()];
             const link = document.createElement("a");
             link.href = icon.url || "#";
             link.style.cssText = `
-              display: inline-flex;
-              width: ${iconBox}px;
-              height: ${iconBox}px;
-              align-items: center;
-              justify-content: center;
-              text-decoration: none;
-              border: none;
-              background: transparent;
-              transition: ${styles.transition || "opacity 0.2s"};
-            `;
+            display: inline-flex;
+            width: 28px;
+            height: 28px;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            border: none;
+            background: transparent;
+            transition: ${styles.transition || "opacity 0.2s"};
+          `;
             stripLayoutTransforms(link);
 
             if (info) {
@@ -1488,8 +1987,8 @@ if (!styles.transform && !styles.rotate) {
                 "svg"
               );
               svg.setAttribute("viewBox", info.viewBox);
-              svg.setAttribute("width", iconSize.toString());
-              svg.setAttribute("height", iconSize.toString());
+              svg.setAttribute("width", "24");
+              svg.setAttribute("height", "24");
 
               const path = document.createElementNS(
                 "http://www.w3.org/2000/svg",
@@ -1508,53 +2007,22 @@ if (!styles.transform && !styles.rotate) {
               link.textContent = icon.platform?.charAt(0).toUpperCase();
               link.style.color = styles.iconColor || styles.color || "#666";
               link.style.fontSize = "16px";
-              link.style.lineHeight = `${iconSize}px`;
+              link.style.lineHeight = "24px";
               link.style.fontFamily =
                 styles.fontFamily ||
                 globalSettings.fontFamily ||
                 "Arial, sans-serif";
               link.style.fontWeight = iconWeight.toString();
-              link.style.fontVariationSettings = `"wght" ${iconWeight}`;
             }
 
             iconsContainer.appendChild(link);
-
-            const x = baseLeft + offsetX + i * (iconBox + gapPx);
-            const y =
-              baseTop +
-              Math.max(0, (parseFloat(styles.height || "28") - iconBox) / 2);
-            pushLinkRect(icon.url, x, y, iconBox, iconBox);
+            pushLinkRect(icon.url, 0, 0, 28, 28);
           });
 
           div.appendChild(iconsContainer);
         }
         break;
-
-      case "section":
-        div.style.backgroundColor = styles.backgroundColor || "#f9f9f9";
-        div.style.border = getBorderStyles(styles) || "1px solid #e5e5e5";
-        div.style.borderRadius = composeCornerRadius(styles, "8px");
-        div.style.padding = buildSpacing(styles, "padding") || "20px";
-        div.style.margin = buildSpacing(styles, "margin") || "20px 0";
-        div.style.boxShadow = styles.boxShadow || "none";
-        div.style.opacity = styles.opacity || "1";
-        div.style.width = styles.width || "100%";
-        div.style.fontFamily =
-          styles.fontFamily || globalSettings.fontFamily || "Arial, sans-serif";
-        div.style.filter = styles.filter || "none";
-        div.style.backdropFilter = styles.backdropFilter || "none";
-
-        if (element.children && element.children.length > 0) {
-          element.children.forEach((child) => {
-            const childElement = createExportElement(child);
-            if (childElement) {
-              childElement.style.position = "relative";
-              childElement.style.marginBottom = "16px";
-              div.appendChild(childElement);
-            }
-          });
-        }
-        break;
+      }
 
       default:
         return null;
@@ -1562,7 +2030,6 @@ if (!styles.transform && !styles.rotate) {
 
     return div;
   };
-
   const downloadAsImage = async () => {
     if (isExporting) return;
     setIsExporting(true);
@@ -1634,94 +2101,7 @@ if (!styles.transform && !styles.rotate) {
     }
   };
 
-  // const downloadAsPdf = async () => {
-  //   if (isExporting) return;
-  //   setIsExporting(true);
-  //   setIsExportingPdf(true);
-  //   try {
-  //     await ensureFontsLoaded();
-
-  //     const elementToDownload = prepareForExport();
-  //     if (!elementToDownload) {
-  //       dispatch(
-  //         addNotification({
-  //           type: "error",
-  //           message: "Failed to prepare canvas for export",
-  //         })
-  //       );
-  //       return;
-  //     }
-
-  //     Object.assign(elementToDownload.style, {
-  //       position: "absolute",
-  //       left: "-9999px",
-  //       top: "0",
-  //       zIndex: "-1",
-  //     });
-  //     document.body.appendChild(elementToDownload);
-
-  //     await new Promise((r) => setTimeout(r, 1200));
-
-  //     const widthPx = parseInt(globalSettings.maxWidth || "600");
-  //     const heightPx = elementToDownload.scrollHeight;
-
-  //     const dataUrl = await domToImage.toPng(elementToDownload, {
-  //       quality: 1,
-  //       bgcolor: globalSettings.newsletterColor || "#ffffff",
-  //       width: widthPx,
-  //       height: heightPx,
-  //       style: {
-  //         transformOrigin: "top left",
-  //         backgroundColor: globalSettings.newsletterColor || "#ffffff",
-  //       },
-  //       filter: (node) => !node?.dataset?.noExport,
-  //     });
-
-  //     document.body.removeChild(elementToDownload);
-
-  //     const pdf = new jsPDF({
-  //       orientation: widthPx >= heightPx ? "landscape" : "portrait",
-  //       unit: "px",
-  //       format: [widthPx, heightPx],
-  //       compress: true,
-  //     });
-
-  //     pdf.addImage(dataUrl, "PNG", 0, 0, widthPx, heightPx, undefined, "FAST");
-
-  //     exportLinkRects.forEach(({ href, x, y, width, height }) => {
-  //       if (!href || href === "#") return;
-  //       try {
-  //         pdf.link(x, y, width, height, { url: href });
-  //       } catch (e) {
-  //         console.warn("Failed to add PDF link:", e);
-  //       }
-  //     });
-
-  //     pdf.save(
-  //       `${newsletterName.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`
-  //     );
-
-  //     // ✅ ADD SUCCESS NOTIFICATION
-  //     dispatch(
-  //       addNotification({
-  //         type: "success",
-  //         message: "PDF exported successfully!",
-  //       })
-  //     );
-  //   } catch (error) {
-  //     console.error("Error generating PDF:", error);
-  //     // ✅ ADD ERROR NOTIFICATION
-  //     dispatch(
-  //       addNotification({
-  //         type: "error",
-  //         message: "Failed to export PDF. Please try again.",
-  //       })
-  //     );
-  //   } finally {
-  //     setIsExporting(false);
-  //     setIsExportingPdf(false);
-  //   }
-  // };
+ 
 
   // Unsaved Changes Warning Dialog
   // Unsaved Changes Warning Dialog
@@ -1927,12 +2307,52 @@ if (!styles.transform && !styles.rotate) {
                 </svg>
                 New Template
               </button>
+              {/* // Add button in your top toolbar to open JSON import modal */}
+              {/* <button
+                onClick={() => setShowJsonImportModal(true)}
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-600 hover:from-indigo-600 hover:via-purple-700 hover:to-pink-700 transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+              >
+                <Code className="w-4 h-4" />
+                Import JSON
+              </button> */}
+              {/* ✅ ADD HTML/CSS IMPORT BUTTON
+              <button
+                onClick={() => setShowHTMLImportModal(true)}
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-purple-500 via-purple-600 to-indigo-600 hover:from-purple-600 hover:via-purple-700 hover:to-indigo-700 transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+              >
+                <Code className="w-4 h-4" />
+                Import HTML/CSS
+              </button> */}
+
               {/* Center Section: Navigation & Actions */}
               <div className="flex items-center gap-4">
                 {/* Navigation Links */}
                 <nav className="flex items-center gap-3">
-                  <Link
+                  {/* <Link
                     to="/templates"
+                    className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white
+              bg-gradient-to-r from-[#f51398] via-[#c40cd8] to-[#2001fd]
+              hover:from-[#d70f84] hover:via-[#ab0fc4] hover:to-[#2400db]
+              transition-all duration-300 flex items-center gap-2 
+              shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                      />
+                    </svg>
+                    Templates
+                  </Link> */}
+                  <Link
+                    to="/gallery"
                     className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white
               bg-gradient-to-r from-[#f51398] via-[#c40cd8] to-[#2001fd]
               hover:from-[#d70f84] hover:via-[#ab0fc4] hover:to-[#2400db]
@@ -2114,51 +2534,13 @@ if (!styles.transform && !styles.rotate) {
               </div>
             </div>
           </div>
+          {/* ✅ RENDER MODALS */}
           <UnsavedChangesDialog />
           <NewTemplateDialog />
+          <HTMLImportModal />
+          <JsonImportModal />
           {/* Export HTML Button - Commented Out */}
-          {/* <button
-            onClick={async () => {
-              setIsExportingHtml(true);
-              try {
-                const html = exportToEmailHtml({
-                  elements,
-                  globalSettings,
-                  newsletterName,
-                });
-                await navigator.clipboard.writeText(html);
-                showMessage("Email HTML copied to clipboard!");
-              } finally {
-                setIsExportingHtml(false);
-              }
-            }}
-            disabled={isExportingHtml}
-            className={`
-              relative px-8 py-3.5 rounded-2xl text-sm font-bold
-              transition-all duration-300 flex items-center gap-3
-              overflow-hidden group
-              ${isExportingHtml
-                ? "bg-gradient-to-r from-gray-400 to-gray-500 text-white cursor-not-allowed"
-                : "bg-gradient-to-r from-amber-500 via-yellow-500 to-orange-500 text-white hover:shadow-[0_0_35px_rgba(251,191,36,0.6)] hover:scale-105 active:scale-95"
-              }
-            `}
-          >
-            <span className="absolute inset-0 bg-gradient-to-t from-white/0 via-white/10 to-white/0 translate-y-full group-hover:translate-y-0 transition-transform duration-500"></span>
-            <svg
-              className="w-5 h-5 relative z-10"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-              />
-            </svg>
-            <span className="relative z-10">{isExportingHtml ? "Exporting..." : "Export HTML"}</span>
-          </button> */}
+         
         </div>
       </div>
 
@@ -2177,6 +2559,8 @@ if (!styles.transform && !styles.rotate) {
       )}
 
       {/* Main Editor */}
+      {/* Main Editor */}
+
       <div className="flex flex-1 overflow-hidden">
         {activeView === "editor" && (
           <EditorSidebar
@@ -2195,24 +2579,38 @@ if (!styles.transform && !styles.rotate) {
           />
         )}
 
-        <EditorCanvas
-          key={`canvas-${elements.length}-${JSON.stringify(globalSettings)}`}
-          ref={canvasRef}
-          activeView={activeView}
-          handleDragStart={handleDragStart}
-          handleDragEnter={handleDragEnter}
-          handleDragEnd={handleDragEnd}
-          globalSettings={globalSettings}
-          preservePositions={true}
-          selectedElementId={selectedElement?.id}
-          setSelectedElementId={(id) => dispatch(setSelectedElementId(id))}
-          elements={elements}
-          updateElement={handleUpdateElement}
-          handleImageUpload={handleImageUpload}
-          addElement={handleAddElement}
-          deleteElement={handleDeleteElement}
-          duplicateElement={handleDuplicateElement}
-        />
+        {activeView === "editor" && (
+          <EditorCanvas
+            key={`canvas-${elements.length}-${JSON.stringify(globalSettings)}`}
+            ref={canvasRef}
+            setElements={(newElements) => dispatch(setElements(newElements))}
+            activeView={activeView}
+            // handleDragStart={handleDragStart}
+            // handleDragEnter={handleDragEnter}
+            // handleDragEnd={handleDragEnd}
+            globalSettings={globalSettings}
+            // preservePositions={true}
+            selectedElementId={selectedElement?.id}
+            setSelectedElementId={(id) => dispatch(setSelectedElementId(id))}
+            elements={elements}
+            updateElement={handleUpdateElement}
+            handleImageUpload={handleImageUpload}
+            addElement={handleAddElement}
+            deleteElement={handleDeleteElement}
+            duplicateElement={handleDuplicateElement}
+          />
+        )}
+
+        {activeView === "preview" && (
+          <EmailPreviewUnified
+            template={{
+              elements,
+              name: newsletterName,
+              globalSettings,
+            }}
+            globalSettings={globalSettings}
+          />
+        )}
       </div>
     </div>
   );

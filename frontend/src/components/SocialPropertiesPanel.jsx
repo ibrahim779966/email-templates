@@ -1,4 +1,4 @@
-// SocialPropertiesPanel.jsx
+// SocialPropertiesPanel.jsx - Email-Safe Version
 
 import React from "react";
 import { Input } from "@/components/ui/input";
@@ -30,7 +30,7 @@ import {
   Trash2,
   Share2,
   Palette,
-  Settings,
+  AlertCircle,
   Plus,
   X,
   ExternalLink,
@@ -59,6 +59,7 @@ export default function SocialPropertiesPanel({
       id: Date.now(),
       platform: "facebook",
       url: "",
+      altText: "",
     };
     updateElement(element.id, {
       icons: [...(element.icons || []), newIcon],
@@ -78,6 +79,12 @@ export default function SocialPropertiesPanel({
     updateElement(element.id, {
       icons: element.icons.filter((icon) => icon.id !== id),
     });
+  };
+
+  // Helper to get safe numeric values
+  const getSafeNumericValue = (styleValue, defaultValue) => {
+    const parsed = parseInt(styleValue);
+    return isNaN(parsed) ? defaultValue : parsed;
   };
 
   const platformOptions = [
@@ -106,15 +113,16 @@ export default function SocialPropertiesPanel({
           Social Links Properties
         </CardTitle>
         <CardDescription className="text-sm leading-relaxed">
-          Links and social icons are fully functional in the{" "}
+          Email-safe social links compatible with{" "}
           <Badge variant="secondary" className="text-xs">
-            Preview
+            Gmail
           </Badge>{" "}
-          and{" "}
           <Badge variant="secondary" className="text-xs">
-            Export
+            Outlook
           </Badge>{" "}
-          views!
+          <Badge variant="secondary" className="text-xs">
+            All Clients
+          </Badge>
         </CardDescription>
       </CardHeader>
 
@@ -124,6 +132,22 @@ export default function SocialPropertiesPanel({
           defaultValue={["styling"]}
           className="w-full"
         >
+          {/* Email Safety Notice */}
+          <div className="px-4 py-3 bg-blue-50 border-b">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="text-sm space-y-1">
+                <p className="font-medium text-blue-900">
+                  Email-Safe Social Links
+                </p>
+                <p className="text-xs text-blue-800">
+                  Social icons render as text links with alt text fallback. All
+                  links are clickable and tracked across all email clients.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Styling Section */}
           <AccordionItem value="styling" className="border-0">
             <AccordionTrigger className="px-4 py-3 bg-purple-50/50 hover:bg-purple-50 border-b">
@@ -134,8 +158,14 @@ export default function SocialPropertiesPanel({
             </AccordionTrigger>
             <AccordionContent className="px-4 pb-4">
               <div className="space-y-4 pt-2">
+                {/* Icon Color */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Icon Color</Label>
+                  <Label className="text-sm font-medium">
+                    Icon Color
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      Hex Only
+                    </Badge>
+                  </Label>
                   <div className="flex gap-2">
                     <Input
                       type="color"
@@ -155,8 +185,13 @@ export default function SocialPropertiesPanel({
                       placeholder="#666666"
                     />
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Use hex values for consistent rendering across all email
+                    clients
+                  </p>
                 </div>
 
+                {/* Alignment */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Alignment</Label>
                   <Select
@@ -170,22 +205,146 @@ export default function SocialPropertiesPanel({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="left">Left</SelectItem>
-                      <SelectItem value="center">Center</SelectItem>
+                      <SelectItem value="center">
+                        Center (Recommended)
+                      </SelectItem>
                       <SelectItem value="right">Right</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Center alignment works most reliably across email clients
+                  </p>
                 </div>
 
+                {/* Icon Size */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">
-                    Spacing Between Icons
+                    Icon Size (px)
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      Recommended: 24-32px
+                    </Badge>
                   </Label>
                   <div className="flex gap-1 items-center">
                     <Input
                       type="number"
-                      value={parseInt(element.styles?.gap) || 8}
+                      min="16"
+                      max="64"
+                      value={getSafeNumericValue(element.styles?.iconSize, 24)}
                       onChange={(e) =>
-                        handleStyleChange("gap", `${e.target.value}px`)
+                        handleStyleChange(
+                          "iconSize",
+                          `${Math.min(
+                            64,
+                            Math.max(16, parseInt(e.target.value) || 24)
+                          )}px`
+                        )
+                      }
+                      className="text-sm"
+                    />
+                    <Badge variant="outline" className="text-xs">
+                      px
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    16-64px range. Smaller sizes work better in email clients
+                    (max 32px)
+                  </p>
+                </div>
+
+                {/* Spacing Between Icons */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">
+                    Spacing Between Icons
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      Recommended: 8-16px
+                    </Badge>
+                  </Label>
+                  <div className="flex gap-1 items-center">
+                    <Input
+                      type="number"
+                      min="4"
+                      max="32"
+                      value={getSafeNumericValue(element.styles?.gap, 8)}
+                      onChange={(e) =>
+                        handleStyleChange(
+                          "gap",
+                          `${Math.min(
+                            32,
+                            Math.max(4, parseInt(e.target.value) || 8)
+                          )}px`
+                        )
+                      }
+                      className="text-sm"
+                    />
+                    <Badge variant="outline" className="text-xs">
+                      px
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Use padding or cells for spacing, not margin (unreliable in
+                    email)
+                  </p>
+                </div>
+
+                {/* Font */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">
+                    Font Family
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      Email Safe
+                    </Badge>
+                  </Label>
+                  <Select
+                    value={
+                      element.styles?.fontFamily ||
+                      "Arial, Helvetica, sans-serif"
+                    }
+                    onValueChange={(value) =>
+                      handleStyleChange("fontFamily", value)
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select font" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Arial, Helvetica, sans-serif">
+                        Arial
+                      </SelectItem>
+                      <SelectItem value="Helvetica, Arial, sans-serif">
+                        Helvetica
+                      </SelectItem>
+                      <SelectItem value="Verdana, Geneva, sans-serif">
+                        Verdana
+                      </SelectItem>
+                      <SelectItem value="Georgia, Times, serif">
+                        Georgia
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Font Size for Labels */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">
+                    Font Size (px)
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      12-14px
+                    </Badge>
+                  </Label>
+                  <div className="flex gap-1 items-center">
+                    <Input
+                      type="number"
+                      min="12"
+                      max="18"
+                      value={getSafeNumericValue(element.styles?.fontSize, 14)}
+                      onChange={(e) =>
+                        handleStyleChange(
+                          "fontSize",
+                          `${Math.min(
+                            18,
+                            Math.max(12, parseInt(e.target.value) || 14)
+                          )}px`
+                        )
                       }
                       className="text-sm"
                     />
@@ -304,6 +463,37 @@ export default function SocialPropertiesPanel({
                                   placeholder="https://..."
                                   className="h-9 text-sm"
                                 />
+                                <p className="text-xs text-muted-foreground">
+                                  Full URL to your social profile
+                                </p>
+                              </div>
+
+                              {/* Alt Text for Accessibility */}
+                              <div className="space-y-2">
+                                <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                                  Alt Text (Accessibility)
+                                </Label>
+                                <Input
+                                  type="text"
+                                  value={icon.altText || ""}
+                                  onChange={(e) =>
+                                    updatePlatform(
+                                      icon.id,
+                                      "altText",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder={`Follow us on ${
+                                    platformInfo?.label || "Social Media"
+                                  }`}
+                                  maxLength="100"
+                                  className="h-9 text-sm"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  e.g., "Follow us on{" "}
+                                  {platformInfo?.label || "Social"}" (max 100
+                                  chars)
+                                </p>
                               </div>
                             </div>
                           </CardContent>

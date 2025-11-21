@@ -9,7 +9,6 @@ const Template = require("../model/template.model");
 // const Template = require('./template.model');
 
 class TemplateRepository {
-  
   /**
    * Create a new template in the database
    * @param {Object} templateData - Template data to be saved
@@ -36,6 +35,9 @@ class TemplateRepository {
    */
   async findByWorkId(workId) {
     return await Template.find({ workId }).sort({ updatedAt: -1 });
+  }
+  async getPublicTemplates() {
+    return await Template.find({ isPublic: true }).sort({ updatedAt: -1 });
   }
 
   /**

@@ -1,129 +1,160 @@
 // ============================================
 // FILE: controllers/template.controller.js
-// PURPOSE: Request handler - validates input and delegates to use cases
-// RESPONSIBILITIES: Handle HTTP requests, validate input, format responses
+// PURPOSE: Template Controller with Cloudinary Integration
 // ============================================
 
-const templateUseCase = require('../usecases/template.usecase');
-const { CreateTemplateDto } = require('../dto/template.dto');
-const { InternalServerError } = require('../utils/errors');
+const templateUseCase = require("../usecases/template.usecase");
+const { CreateTemplateDto, UpdateTemplateDto } = require("../dto/template.dto");
+const { InternalServerError } = require("../utils/errors");
+const {
+  processElementsImages,
+  uploadBase64ToCloudinary,
+} = require("../config/cloudinary.config");
 
 class TemplateController {
-
   /**
    * Create a new template
    * @route POST /api/v1/templates
-   * @param {Object} req - Express request object
-   * @param {Object} res - Express response object
-   * @param {Function} next - Express next middleware function
    */
   async createTemplate(req, res, next) {
     try {
-      const { name, cloudinaryUrl, workId, previewImageUrl } = req.body;
+      const { name, elements, globalSettings, previewImageUrl, category } =
+        req.body;
+      const workId = req.user?.workId || req.body.workId; // Support both auth methods
 
-      // Input validation
-      if (!name || !cloudinaryUrl || !workId) {
+      if (!name) {
         return res.status(400).json({
-          message: 'Missing required fields: name, cloudinaryUrl, and workId.',
+          message: "Missing required field: name",
         });
       }
 
-      // Create DTO for data transfer
-      const createDto = new CreateTemplateDto(name, cloudinaryUrl, workId, previewImageUrl);
-      
-      // Delegate to use case
+      // Process elements and upload images to Cloudinary
+      let processedElements = elements || [];
+      if (processedElements.length > 0) {
+        processedElements = await processElementsImages(processedElements);
+      }
+
+      // Process preview image if it's base64
+      let processedPreviewUrl = previewImageUrl || "";
+      if (
+        processedPreviewUrl &&
+        processedPreviewUrl.startsWith("data:image/")
+      ) {
+        processedPreviewUrl = await uploadBase64ToCloudinary(
+          processedPreviewUrl
+        );
+      }
+
+      const createDto = new CreateTemplateDto(
+        name,
+        workId,
+        processedElements,
+        globalSettings || {},
+        processedPreviewUrl,
+        category || "Other" // provide default if needed
+      );
+
       const template = await templateUseCase.createTemplate(createDto);
 
-      // Send success response
       res.status(201).json({
-        message: 'Template created successfully.',
+        message: "Template created successfully.",
         data: template,
       });
     } catch (error) {
-      // Pass error to error handling middleware
-      next(new InternalServerError('Failed to create template.', error));
+      next(new InternalServerError("Failed to create template.", error));
     }
   }
 
   /**
    * Get all templates by work ID
    * @route GET /api/v1/templates/work/:workId
-   * @param {Object} req - Express request object
-   * @param {Object} res - Express response object
-   * @param {Function} next - Express next middleware function
    */
   async getTemplatesByWorkId(req, res, next) {
     try {
-      const { workId } = req.params;
-      
-      // Delegate to use case
+      const workId = req.user?.workId || req.params.workId;
       const templates = await templateUseCase.getTemplatesByWorkId(workId);
 
-      // Send success response
       res.status(200).json({
-        message: `Found ${templates.length} templates for work ID ${workId}.`,
+        message: `Found ${templates.length} templates.`,
         data: templates,
       });
     } catch (error) {
-      // Pass error to error handling middleware
-      next(new InternalServerError('Failed to fetch templates.', error));
+      next(new InternalServerError("Failed to fetch templates.", error));
     }
   }
 
   /**
    * Get a single template by ID
    * @route GET /api/v1/templates/:id
-   * @param {Object} req - Express request object
-   * @param {Object} res - Express response object
-   * @param {Function} next - Express next middleware function
    */
   async getTemplateById(req, res, next) {
     try {
       const { id } = req.params;
-      
-      // Delegate to use case
       const template = await templateUseCase.getTemplateById(id);
 
-      // Send success response
       res.status(200).json({
-        message: 'Template retrieved successfully.',
+        message: "Template retrieved successfully.",
         data: template,
       });
     } catch (error) {
-      // Pass error to error handling middleware
       next(error);
+    }
+  }
+  /**
+   * Get all public templates
+   * @route GET /api/v1/templates/public
+   */
+  async getPublicTemplates(req, res, next) {
+    try {
+      const templates = await templateUseCase.getPublicTemplates();
+      res.status(200).json({
+        message: `Found ${templates.length} public templates.`,
+        data: templates,
+      });
+    } catch (error) {
+      next(new InternalServerError("Failed to fetch public templates.", error));
     }
   }
 
   /**
    * Update a template
    * @route PUT /api/v1/templates/:id
-   * @param {Object} req - Express request object
-   * @param {Object} res - Express response object
-   * @param {Function} next - Express next middleware function
    */
   async updateTemplate(req, res, next) {
     try {
       const { id } = req.params;
-      const updateFields = req.body;
+      const updateData = { ...req.body };
 
-      // Input validation
-      if (Object.keys(updateFields).length === 0) {
-        return res.status(400).json({ 
-          message: 'Must provide at least one field to update.' 
+      // Process elements if provided
+      if (updateData.elements && Array.isArray(updateData.elements)) {
+        updateData.elements = await processElementsImages(updateData.elements);
+      }
+
+      // Process preview image if it's base64
+      if (
+        updateData.previewImageUrl &&
+        updateData.previewImageUrl.startsWith("data:image/")
+      ) {
+        updateData.previewImageUrl = await uploadBase64ToCloudinary(
+          updateData.previewImageUrl
+        );
+      }
+
+      const updates = new UpdateTemplateDto(updateData);
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({
+          message: "Must provide at least one field to update.",
         });
       }
 
-      // Delegate to use case
-      const updatedTemplate = await templateUseCase.updateTemplate(id, updateFields);
+      const updatedTemplate = await templateUseCase.updateTemplate(id, updates);
 
-      // Send success response
       res.status(200).json({
-        message: 'Template updated successfully.',
+        message: "Template updated successfully.",
         data: updatedTemplate,
       });
     } catch (error) {
-      // Pass error to error handling middleware
       next(error);
     }
   }
@@ -131,22 +162,59 @@ class TemplateController {
   /**
    * Delete a template
    * @route DELETE /api/v1/templates/:id
-   * @param {Object} req - Express request object
-   * @param {Object} res - Express response object
-   * @param {Function} next - Express next middleware function
    */
   async deleteTemplate(req, res, next) {
     try {
       const { id } = req.params;
-      
-      // Delegate to use case
       const result = await templateUseCase.deleteTemplate(id);
 
-      // Send success response
       res.status(200).json(result);
     } catch (error) {
-      // Pass error to error handling middleware
       next(error);
+    }
+  }
+
+  /**
+   * Generate email HTML from template
+   * @route GET /api/v1/templates/:id/email-html
+   */
+  async getEmailHtml(req, res, next) {
+    try {
+      const { id } = req.params;
+      const html = await templateUseCase.generateEmailHtml(id);
+
+      res.status(200).json({
+        message: "Email HTML generated successfully.",
+        data: { html },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Upload single image to Cloudinary
+   * @route POST /api/v1/templates/upload-image
+   */
+  async uploadImage(req, res, next) {
+    try {
+      const { image } = req.body;
+
+      if (!image) {
+        return res.status(400).json({
+          message: "Image data is required",
+        });
+      }
+
+      // Upload to Cloudinary
+      const cloudinaryUrl = await uploadBase64ToCloudinary(image);
+
+      res.status(200).json({
+        message: "Image uploaded successfully.",
+        data: { url: cloudinaryUrl },
+      });
+    } catch (error) {
+      next(new InternalServerError("Failed to upload image.", error));
     }
   }
 }

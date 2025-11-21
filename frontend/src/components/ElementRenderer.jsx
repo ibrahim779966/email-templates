@@ -1,5 +1,12 @@
-// ElementRenderer.jsx
-import React, { useRef, useState, useEffect } from "react";
+// ElementRenderer.jsx - Email-Safe Version with No Default Padding/Margin on Containers
+
+import React, {
+  useRef,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   FaFacebook,
   FaYoutube,
@@ -16,13 +23,25 @@ import {
   FaQuora,
 } from "react-icons/fa";
 import { FaXTwitter, FaThreads } from "react-icons/fa6";
-import { Globe } from "lucide-react";
+import { Globe, ArrowUp, ArrowDown, Plus } from "lucide-react";
 import { Image as ImageIcon } from "lucide-react";
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
 
 // Browser check helper
 const isBrowser = () =>
   typeof window !== "undefined" && typeof document !== "undefined";
 
+// Container types that can hold children
+const CONTAINER_TYPES = ["section", "grid", "item", "column", "row"];
+
+const canHaveChildren = (elementType) => {
+  return CONTAINER_TYPES.includes(elementType);
+};
+
+// Icon component helper
 const getIconComponent = (platform) => {
   switch (platform.toLowerCase()) {
     case "facebook":
@@ -87,7 +106,7 @@ const normalizeWeight = (weight) => {
   return weight;
 };
 
-// Border styles helper
+// Border styles helper - email safe
 const getBorderStyles = (styles) => {
   if (styles.borderWidth && styles.borderColor) {
     const style = styles.borderStyle || "solid";
@@ -98,19 +117,19 @@ const getBorderStyles = (styles) => {
 
 // Helper to build spacing from individual properties
 const buildSpacing = (styles, property) => {
-  const top = styles[`${property}Top`] || "0px";
-  const right = styles[`${property}Right`] || "0px";
-  const bottom = styles[`${property}Bottom`] || "0px";
-  const left = styles[`${property}Left`] || "0px";
+  const top = styles[`${property}Top`];
+  const right = styles[`${property}Right`];
+  const bottom = styles[`${property}Bottom`];
+  const left = styles[`${property}Left`];
 
-  if (top === right && right === bottom && bottom === left) {
-    return top;
+  if (top || right || bottom || left) {
+    return `${top || "0"} ${right || "0"} ${bottom || "0"} ${left || "0"}`;
   }
-  return `${top} ${right} ${bottom} ${left}`;
+  return undefined;
 };
 
-// Build per-corner radius string if any corner is set; else return styles.borderRadius or fallback
-const composeCornerRadius = (styles, fallback = "0px") => {
+// Build per-corner radius string
+const composeCornerRadius = (styles) => {
   const tl = styles?.borderTopLeftRadius;
   const tr = styles?.borderTopRightRadius;
   const br = styles?.borderBottomRightRadius;
@@ -118,26 +137,25 @@ const composeCornerRadius = (styles, fallback = "0px") => {
 
   const anyCorner = tl || tr || br || bl;
   if (anyCorner) {
-    return `${tl || "0px"} ${tr || "0px"} ${br || "0px"} ${bl || "0px"}`;
+    return `${tl || "0"} ${tr || "0"} ${br || "0"} ${bl || "0"}`;
   }
-  return styles?.borderRadius || fallback;
+  return styles?.borderRadius;
 };
 
-// Return the final radius to apply given shapeType and styles
+// Return the final radius for shapes
 const getShapeBorderRadius = (shapeType, styles) => {
   switch ((shapeType || "rectangle").toLowerCase()) {
     case "circle":
     case "oval":
       return "50%";
     case "rounded-rectangle":
-      return composeCornerRadius(styles, "12px");
+      return composeCornerRadius(styles) || "12px";
     case "rectangle":
-      return composeCornerRadius(styles, "0px");
-    // Polygon shapes won't visually show rounded corners due to clipping
+      return composeCornerRadius(styles) || "0";
     case "trapezoid":
     case "star":
     default:
-      return "0px";
+      return "0";
   }
 };
 
@@ -159,7 +177,14 @@ const isPolygonShape = (shapeType) => {
   return t === "trapezoid" || t === "star";
 };
 
-// Enhanced stripLayoutTransforms for better text consistency
+// Get pixel dimension from value
+const getPixelDimension = (value, fallback) => {
+  if (!value) return fallback;
+  const parsed = parseInt(value);
+  return isNaN(parsed) ? fallback : parsed;
+};
+
+// Enhanced stripLayoutTransforms for export
 const stripLayoutTransforms = (node, preserveImageRotation = false) => {
   if (node && node.style) {
     if (!preserveImageRotation) {
@@ -181,7 +206,6 @@ const stripLayoutTransforms = (node, preserveImageRotation = false) => {
     node.style.webkitFontSmoothing = "antialiased";
     node.style.mozOsxFontSmoothing = "grayscale";
 
-    // Remove any inherited positioning quirks
     if (
       node.tagName === "DIV" ||
       node.tagName === "H1" ||
@@ -195,14 +219,13 @@ const stripLayoutTransforms = (node, preserveImageRotation = false) => {
   }
 };
 
-// Enhanced font loading for exact matching across all exports
+// Enhanced font loading
 const ensureFontsLoaded = async () => {
   const id = "export-fonts";
   if (!document.getElementById(id)) {
     const link = document.createElement("link");
     link.id = id;
     link.rel = "stylesheet";
-    // Include all font weights and styles for exact matching
     link.href =
       "https://fonts.googleapis.com/css2?" +
       "family=Inter:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&" +
@@ -211,15 +234,12 @@ const ensureFontsLoaded = async () => {
       "family=Open+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,300;1,400;1,500;1,600;1,700;1,800&" +
       "display=swap";
     document.head.appendChild(link);
-
-    // Wait longer for font loading
     await new Promise((r) => setTimeout(r, 1500));
   }
 
   if (document.fonts && document.fonts.ready) {
     try {
       await document.fonts.ready;
-      // Additional wait to ensure fonts are fully rendered
       await new Promise((r) => setTimeout(r, 500));
     } catch (e) {
       console.warn("Font loading timeout:", e);
@@ -227,55 +247,136 @@ const ensureFontsLoaded = async () => {
   }
 };
 
-// Main export element creation with EXACT padding and text positioning
-const createExportElement = (element, globalSettings) => {
+// ============================================
+// EXPORT ELEMENT CREATION
+// ============================================
+
+const createExportElement = (element, globalSettings, isNested = false) => {
   const { id, type, content, styles, link, icons, children } = element;
 
   const div = document.createElement("div");
-  div.style.cssText = `
-    position: absolute;
-    left: ${styles.left || "0"};
-    top: ${styles.top || "0"};
-    width: ${styles.width || "auto"};
-    height: ${styles.height || "auto"};
-    z-index: ${styles.zIndex || 1};
-    transform: ${styles.transform || "none"};
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  `;
+  div.style.position = "relative";
+  div.style.width = "100%";
+  div.style.boxSizing = "border-box";
+  div.style.display = "block";
 
   switch (type) {
+    case "section": {
+      const section = document.createElement("div");
+      section.style.cssText = `
+        position: relative;
+        width: 100%;
+        background-color: ${styles?.backgroundColor || "transparent"};
+        border: ${getBorderStyles(styles) || "none"};
+        border-radius: ${composeCornerRadius(styles) || "0"};
+        padding: ${buildSpacing(styles, "padding") || "0"};
+        margin: ${buildSpacing(styles, "margin") || "0"};
+        box-shadow: ${styles?.boxShadow || "none"};
+        display: block;
+        box-sizing: border-box;
+      `;
+      if (children && children.length) {
+        children.forEach((child) => {
+          const childElem = createExportElement(child, globalSettings, true);
+          if (childElem) {
+            section.appendChild(childElem);
+          }
+        });
+      }
+      stripLayoutTransforms(section);
+      return section;
+    }
+
+    case "grid": {
+      const grid = document.createElement("div");
+      grid.style.cssText = `
+        position: relative;
+        width: 100%;
+        display: grid;
+        grid-template-columns: ${
+          styles?.gridTemplateColumns || "repeat(2, 1fr)"
+        };
+        gap: ${styles?.gap || "0"};
+        background-color: ${styles?.backgroundColor || "transparent"};
+        border: ${getBorderStyles(styles) || "none"};
+        padding: ${buildSpacing(styles, "padding") || "0"};
+        margin: ${buildSpacing(styles, "margin") || "0"};
+        box-sizing: border-box;
+      `;
+      if (children && children.length) {
+        children.forEach((child) => {
+          const childElem = createExportElement(child, globalSettings, true);
+          if (childElem) {
+            childElem.style.width = "100%";
+            childElem.style.height = "auto";
+            childElem.style.boxSizing = "border-box";
+            grid.appendChild(childElem);
+          }
+        });
+      }
+      stripLayoutTransforms(grid);
+      return grid;
+    }
+
+    case "item": {
+      const item = document.createElement("div");
+      item.style.cssText = `
+        position: relative;
+        width: 100%;
+        background-color: ${styles?.backgroundColor || "transparent"};
+        border: ${getBorderStyles(styles) || "none"};
+        padding: ${buildSpacing(styles, "padding") || "0"};
+        border-radius: ${composeCornerRadius(styles) || "0"};
+        margin: ${buildSpacing(styles, "margin") || "0"};
+        box-sizing: border-box;
+        display: block;
+      `;
+      if (children && children.length) {
+        children.forEach((child) => {
+          const childElem = createExportElement(child, globalSettings, true);
+          if (childElem) {
+            item.appendChild(childElem);
+          }
+        });
+      }
+      stripLayoutTransforms(item);
+      return item;
+    }
+
+    case "column": {
+      const column = document.createElement("div");
+      column.style.cssText = `
+        position: relative;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: ${styles?.gap || "0"};
+        background-color: ${styles?.backgroundColor || "transparent"};
+        border: ${getBorderStyles(styles) || "none"};
+        padding: ${buildSpacing(styles, "padding") || "0"};
+        margin: ${buildSpacing(styles, "margin") || "0"};
+        box-sizing: border-box;
+      `;
+      if (children && children.length) {
+        children.forEach((child) => {
+          const childElem = createExportElement(child, globalSettings, true);
+          if (childElem) {
+            column.appendChild(childElem);
+          }
+        });
+      }
+      stripLayoutTransforms(column);
+      return column;
+    }
+
     case "shape": {
       const shapeType = styles?.shapeType || "rectangle";
       const shapeWidth = parseInt(styles?.width) || 200;
       const shapeHeight = parseInt(styles?.height) || 200;
 
-      // Shape-specific styling with fixed corner radius
       const isPoly = isPolygonShape(shapeType);
       const shapeRadius = getShapeBorderRadius(shapeType, styles);
       const shapeClip = getShapeClipPath(shapeType);
-
-
-        // âœ… Calculate rotation properly
-  const rotationValue = styles?.rotation
-    ? `rotate(${
-        String(styles.rotation).includes("deg")
-          ? styles.rotation
-          : styles.rotation + "deg"
-      })`
-    : "none";
-  
-      // Ensure wrapper has explicit px size
-      div.style.width = `${shapeWidth}px`;
-      div.style.height = `${shapeHeight}px`;
-       div.style.background = "transparent";
-       div.style.boxSizing = "border-box";
-       div.style.transform = rotationValue;  // âœ… Apply rotation
-       div.style.transformOrigin = "center center";  // âœ… Use center for rotation
-
-     
-
 
       const getFillStyle = () => {
         const fillType = styles?.fillType || "solid";
@@ -295,87 +396,54 @@ const createExportElement = (element, globalSettings) => {
         }
       };
 
-      const container = document.createElement("div");
-      container.style.cssText = `
-        position: relative;
-        width: ${shapeWidth}px;
-        height: ${shapeHeight}px;
-        display: block;
-        margin: ${buildSpacing(styles, "margin") || "0"};
-        padding: ${buildSpacing(styles, "padding") || "0"};
-        box-sizing: border-box;
-        opacity: ${styles?.opacity || "1"};
-      `;
-
       const shapeDiv = document.createElement("div");
-
       shapeDiv.style.cssText = `
         width: ${shapeWidth}px;
         height: ${shapeHeight}px;
         background: ${getFillStyle()};
-        ${isPoly ? "clip-path:" + shapeClip + ";" : "clip-path:none;"} 
+        ${isPoly ? "clip-path:" + shapeClip + ";" : "clip-path:none;"}
         ${
           isPoly
             ? "-webkit-clip-path:" + shapeClip + ";"
             : "-webkit-clip-path:none;"
         }
-        ${!isPoly ? "border-radius:" + shapeRadius + ";" : "border-radius:0px;"}
+        ${!isPoly ? "border-radius:" + shapeRadius + ";" : "border-radius:0;"}
         border: ${getBorderStyles(styles)};
         box-shadow: ${styles?.boxShadow || "none"};
+        opacity: ${styles?.opacity || "1"};
         box-sizing: border-box;
+        margin: 0 auto;
       `;
 
-      container.appendChild(shapeDiv);
-      stripLayoutTransforms(container);
-      div.appendChild(container);
+      stripLayoutTransforms(shapeDiv);
+      div.appendChild(shapeDiv);
       break;
     }
-    case "text": {
-      // Create a container that matches editor exactly
-      const textContainer = document.createElement("div");
-      textContainer.style.cssText = `
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        padding: ${buildSpacing(styles, "padding") || "0"};
-        background-color: ${styles.backgroundColor || "transparent"};
-        border-radius: ${composeCornerRadius(styles, "0")};
-        border: ${getBorderStyles(styles)};
-        box-shadow: ${styles.boxShadow || "none"};
-        box-sizing: border-box;
-        display: flex;
-        align-items: flex-start;
-        justify-content: ${
-          styles.textAlign === "center"
-            ? "center"
-            : styles.textAlign === "right"
-            ? "flex-end"
-            : "flex-start"
-        };
-      `;
 
+    case "text": {
       const textNode = document.createElement("div");
       textNode.textContent = element.content || "Text content";
-      const textWeight = normalizeWeight(styles.fontWeight);
+      const textWeight = normalizeWeight(styles?.fontWeight);
       textNode.style.cssText = `
-        margin: 0;
-        padding: 0;
-        font-size: ${styles.fontSize || "16px"};
+        margin: ${buildSpacing(styles, "margin") || "0"};
+        padding: ${buildSpacing(styles, "padding") || "0"};
+        font-size: ${styles?.fontSize || "16px"};
         font-weight: ${textWeight};
         font-variation-settings: "wght" ${textWeight};
-        font-style: ${styles.fontStyle || "normal"};
-        text-decoration: ${styles.textDecoration || "none"};
-        color: ${styles.color || "#333333"};
-        line-height: ${styles.lineHeight || "1.6"};
-        text-align: ${getConsistentTextAlign(styles.textAlign || "left")};
-        text-shadow: ${styles.textShadow || "none"};
-        letter-spacing: ${styles.letterSpacing || "normal"};
-        word-spacing: ${styles.wordSpacing || "normal"};
-        text-indent: ${styles.textIndent || "0"};
-        text-transform: ${styles.textTransform || "none"};
+        font-style: ${styles?.fontStyle || "normal"};
+        text-decoration: ${styles?.textDecoration || "none"};
+        color: ${styles?.color || "#333333"};
+        line-height: ${styles?.lineHeight || "1.6"};
+        text-align: ${getConsistentTextAlign(styles?.textAlign || "left")};
+        text-shadow: ${styles?.textShadow || "none"};
+        letter-spacing: ${styles?.letterSpacing || "normal"};
+        word-spacing: ${styles?.wordSpacing || "normal"};
+        text-indent: ${styles?.textIndent || "0"};
+        text-transform: ${styles?.textTransform || "none"};
+        background-color: ${styles?.backgroundColor || "transparent"};
+        border-radius: ${composeCornerRadius(styles) || "0"};
+        border: ${getBorderStyles(styles)};
+        box-shadow: ${styles?.boxShadow || "none"};
         vertical-align: baseline;
         white-space: pre-wrap;
         overflow-wrap: break-word;
@@ -384,69 +452,44 @@ const createExportElement = (element, globalSettings) => {
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         font-family: ${
-          styles.fontFamily || globalSettings?.fontFamily || "Arial, sans-serif"
+          styles?.fontFamily ||
+          globalSettings?.fontFamily ||
+          "Arial, sans-serif"
         };
-        opacity: ${styles.opacity || "1"};
-        width: ${
-          styles.textAlign === "center" || styles.textAlign === "right"
-            ? "auto"
-            : "100%"
-        };
+        opacity: ${styles?.opacity || "1"};
+        width: 100%;
+        box-sizing: border-box;
       `;
 
       stripLayoutTransforms(textNode);
-      stripLayoutTransforms(textContainer);
-      textContainer.appendChild(textNode);
-      div.appendChild(textContainer);
+      div.appendChild(textNode);
       break;
     }
 
     case "header": {
-      // Create a container that matches editor exactly
-      const headerContainer = document.createElement("div");
-      headerContainer.style.cssText = `
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        padding: ${buildSpacing(styles, "padding") || "0"};
-        background-color: ${styles.backgroundColor || "transparent"};
-        border-radius: ${composeCornerRadius(styles, "0")};
-        border: ${getBorderStyles(styles)};
-        box-shadow: ${styles.boxShadow || "none"};
-        box-sizing: border-box;
-        display: flex;
-        align-items: flex-start;
-        justify-content: ${
-          styles.textAlign === "center"
-            ? "center"
-            : styles.textAlign === "right"
-            ? "flex-end"
-            : "flex-start"
-        };
-      `;
-
       const headerNode = document.createElement("h2");
       headerNode.textContent = element.content || "Header";
-      const headerWeight = normalizeWeight(styles.fontWeight);
+      const headerWeight = normalizeWeight(styles?.fontWeight);
       headerNode.style.cssText = `
-        margin: 0;
-        padding: 0;
-        font-size: ${styles.fontSize || "28px"};
+        margin: ${buildSpacing(styles, "margin") || "0"};
+        padding: ${buildSpacing(styles, "padding") || "0"};
+        font-size: ${styles?.fontSize || "28px"};
         font-weight: ${headerWeight};
         font-variation-settings: "wght" ${headerWeight};
-        font-style: ${styles.fontStyle || "normal"};
-        text-decoration: ${styles.textDecoration || "none"};
-        color: ${styles.color || "#1a1a1a"};
-        line-height: ${styles.lineHeight || "1.4"};
-        text-align: ${getConsistentTextAlign(styles.textAlign || "left")};
-        text-shadow: ${styles.textShadow || "none"};
-        letter-spacing: ${styles.letterSpacing || "normal"};
-        word-spacing: ${styles.wordSpacing || "normal"};
-        text-indent: ${styles.textIndent || "0"};
-        text-transform: ${styles.textTransform || "none"};
+        font-style: ${styles?.fontStyle || "normal"};
+        text-decoration: ${styles?.textDecoration || "none"};
+        color: ${styles?.color || "#1a1a1a"};
+        line-height: ${styles?.lineHeight || "1.4"};
+        text-align: ${getConsistentTextAlign(styles?.textAlign || "left")};
+        text-shadow: ${styles?.textShadow || "none"};
+        letter-spacing: ${styles?.letterSpacing || "normal"};
+        word-spacing: ${styles?.wordSpacing || "normal"};
+        text-indent: ${styles?.textIndent || "0"};
+        text-transform: ${styles?.textTransform || "none"};
+        background-color: ${styles?.backgroundColor || "transparent"};
+        border-radius: ${composeCornerRadius(styles) || "0"};
+        border: ${getBorderStyles(styles)};
+        box-shadow: ${styles?.boxShadow || "none"};
         vertical-align: baseline;
         white-space: pre-wrap;
         overflow-wrap: break-word;
@@ -455,113 +498,107 @@ const createExportElement = (element, globalSettings) => {
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         font-family: ${
-          styles.fontFamily || globalSettings?.fontFamily || "Arial, sans-serif"
+          styles?.fontFamily ||
+          globalSettings?.fontFamily ||
+          "Arial, sans-serif"
         };
-        opacity: ${styles.opacity || "1"};
-        width: ${
-          styles.textAlign === "center" || styles.textAlign === "right"
-            ? "auto"
-            : "100%"
-        };
+        opacity: ${styles?.opacity || "1"};
+        width: 100%;
+        box-sizing: border-box;
       `;
 
       stripLayoutTransforms(headerNode);
-      stripLayoutTransforms(headerContainer);
-      headerContainer.appendChild(headerNode);
-      div.appendChild(headerContainer);
+      div.appendChild(headerNode);
       break;
     }
 
     case "image": {
-      const imgBox = document.createElement("div");
+      const imageSrc = element.content;
       const shapeType = styles?.shapeType || "rectangle";
       const isPoly = isPolygonShape(shapeType);
       const imgRadius = getShapeBorderRadius(shapeType, styles);
       const imgClip = getShapeClipPath(shapeType);
 
-      imgBox.style.cssText = `
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        z-index: ${styles.zIndex || 1};
-        background: transparent;
-        border: ${getBorderStyles(styles)};
-        box-shadow: ${styles.boxShadow || "none"};
-        opacity: ${styles.opacity || "1"};
-        box-sizing: border-box;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        ${isPoly ? "clip-path:" + imgClip + ";" : "clip-path:none;"}
-        ${
-          isPoly
-            ? "-webkit-clip-path:" + imgClip + ";"
-            : "-webkit-clip-path:none;"
-        }
-        ${!isPoly ? "border-radius:" + imgRadius + ";" : "border-radius:0px;"}
-      `;
+      // ✅ NEW: Use cropped dimensions if available
+      const hasCropData =
+        element.cropData && element.cropData.width && element.cropData.height;
+      const containerWidth = hasCropData
+        ? element.cropData.width
+        : parseInt(styles?.width) || 600;
+      const containerHeight = hasCropData
+        ? element.cropData.height
+        : parseInt(styles?.height) || 400;
 
+      const container = document.createElement("div");
       const img = document.createElement("img");
-      img.src = content || "";
-      img.alt = "Newsletter Image";
-      img.style.cssText = `
-        width: 100%;
-        height: 100%;
-        object-fit: ${styles.objectFit || "cover"};
-        display: block;
-        margin: 0;
-        padding: 0;
-        border-radius: 0;
-        box-sizing: border-box;
-      `;
 
-      stripLayoutTransforms(img);
-      stripLayoutTransforms(imgBox);
-      imgBox.appendChild(img);
-      div.appendChild(imgBox);
+      container.style.cssText = `
+    position: relative;
+    display: block;
+    width: 100%;
+    max-width: ${containerWidth}px;
+    ${hasCropData ? `height: ${containerHeight}px;` : "height: auto;"}
+    margin: ${buildSpacing(styles, "margin") || "0"};
+    overflow: hidden;
+    border: ${getBorderStyles(styles) || "none"};
+    border-radius: ${isPoly ? "0" : imgRadius};
+    box-shadow: ${styles?.boxShadow || "none"};
+    background-color: ${styles?.backgroundColor || "transparent"};
+    opacity: ${styles?.opacity || 1};
+    box-sizing: border-box;
+    ${isPoly ? `clip-path: ${imgClip};` : ""}
+    ${isPoly ? `-webkit-clip-path: ${imgClip};` : ""}
+  `;
+
+      img.src = imageSrc;
+      img.alt = element.altText || "Image";
+      img.style.cssText = `
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: ${styles?.objectFit || "cover"};
+    border-radius: inherit;
+    box-sizing: border-box;
+  `;
+
+      container.appendChild(img);
+
+      // ✅ NEW: Add crop data attribute for reference
+      if (hasCropData) {
+        img.dataset.crop = JSON.stringify(element.cropData);
+      }
+
+      if (element.link && element.link.trim()) {
+        const linkEl = document.createElement("a");
+        linkEl.href = element.link;
+        linkEl.target = "_blank";
+        linkEl.style.cssText = "display: block; text-decoration: none;";
+        linkEl.appendChild(container);
+        div.appendChild(linkEl);
+      } else {
+        div.appendChild(container);
+      }
       break;
     }
 
     case "button": {
-      div.style.width = styles.width || "200px";
-      div.style.height = styles.height || "50px";
-      // Create outer container that matches the element dimensions
-      const outerContainer = document.createElement("div");
-      outerContainer.style.cssText = `
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        margin: ${buildSpacing(styles, "margin") || "0"};
-        padding: 0;
-        box-sizing: border-box;
-      `;
-
-      // Create button container with flex alignment
       const buttonContainer = document.createElement("div");
       buttonContainer.style.cssText = `
         width: 100%;
-        height: 100%;
         display: flex;
-        align-items: center;  
+        align-items: center;
         justify-content: ${
-          styles.textAlign === "left" || !styles.textAlign
+          styles?.textAlign === "left" || !styles?.textAlign
             ? "flex-start"
-            : styles.textAlign === "right"
+            : styles?.textAlign === "right"
             ? "flex-end"
             : "center"
         };
         padding: 0;
         margin: 0;
-        background-color: transparent;
         box-sizing: border-box;
       `;
 
-      // Create the actual button
       const button = document.createElement("a");
       button.href = link || "#";
       button.textContent = content || "Button";
@@ -569,84 +606,83 @@ const createExportElement = (element, globalSettings) => {
         padding: ${buildSpacing(styles, "padding") || "12px 24px"};
         display: inline-block;
         text-align: center;
-        border-radius: ${composeCornerRadius(styles, "6px")};
-        background-color: ${styles.backgroundColor || "#007bff"};
-        color: ${styles.color || "#fff"};
+        border-radius: ${composeCornerRadius(styles) || "6px"};
+        background-color: ${styles?.backgroundColor || "#007bff"};
+        color: ${styles?.color || "#fff"};
         border: ${getBorderStyles(styles)};
-        font-size: ${styles.fontSize || "16px"};
-        font-weight: ${normalizeWeight(styles.fontWeight) || "400"};
-        font-style: ${styles.fontStyle || "normal"};
+        font-size: ${styles?.fontSize || "16px"};
+        font-weight: ${normalizeWeight(styles?.fontWeight) || "400"};
+        font-style: ${styles?.fontStyle || "normal"};
         font-family: ${
-          styles.fontFamily || globalSettings?.fontFamily || "Arial, sans-serif"
+          styles?.fontFamily ||
+          globalSettings?.fontFamily ||
+          "Arial, sans-serif"
         };
-        box-shadow: ${styles.boxShadow || "none"};
-        opacity: ${styles.opacity || "1"};
-        width: 100%;
-        height: 100%;
+        box-shadow: ${styles?.boxShadow || "none"};
+        opacity: ${styles?.opacity || "1"};
+        text-decoration: none;
         box-sizing: border-box;
       `;
-      stripLayoutTransforms(button);
-      stripLayoutTransforms(buttonContainer);
-      stripLayoutTransforms(outerContainer);
 
+      stripLayoutTransforms(button);
       buttonContainer.appendChild(button);
-      outerContainer.appendChild(buttonContainer);
-      div.appendChild(outerContainer);
+      div.appendChild(buttonContainer);
       break;
     }
 
     case "divider": {
       const dividerContainer = document.createElement("div");
       dividerContainer.style.cssText = `
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: ${styles.height || "20px"};
-        display: flex;
-        align-items: center;
-        justify-content: ${
-          styles.textAlign === "left"
-            ? "flex-start"
-            : styles.textAlign === "right"
-            ? "flex-end"
-            : "center"
-        };
-        padding: ${buildSpacing(styles, "padding") || "0"};
-        background-color: ${styles.backgroundColor || "transparent"};
-        box-sizing: border-box;
-      `;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: ${
+      styles?.textAlign === "left"
+        ? "flex-start"
+        : styles?.textAlign === "right"
+        ? "flex-end"
+        : "center"
+    };
+    padding: ${buildSpacing(styles, "padding") || "0"};
+    margin: ${buildSpacing(styles, "margin") || "0"};
+    background-color: ${styles?.backgroundColor || "transparent"};
+    box-sizing: border-box;
+    position: relative;
+    gap: 12px;
+  `;
+
+      // ✅ UPDATED: Use height-based approach instead of border
+      const borderWidth =
+        parseInt(styles?.borderBottomWidth || styles?.borderWidth || "2px") ||
+        2;
+      const borderColor = styles?.borderColor || "#d1d5db";
 
       const line = document.createElement("div");
       line.style.cssText = `
-        width: 100%;
-        border-bottom: ${
-          styles.borderBottomWidth || styles.borderWidth || "2px"
-        } ${styles.borderBottomStyle || styles.borderStyle || "solid"} ${
-        styles.borderColor || styles.backgroundColor || "#d1d5db"
-      };
-        height: 1px;
-      `;
+    flex: 1;
+    height: ${borderWidth}px;
+    background-color: ${borderColor};
+    box-sizing: border-box;
+  `;
 
       stripLayoutTransforms(dividerContainer);
       dividerContainer.appendChild(line);
 
+      // Support optional divider text/label
       if (content) {
         const text = document.createElement("span");
         text.textContent = content;
         text.style.cssText = `
-          position: absolute;
-          display: inline-block;
-          padding: 0 12px;
-          background-color: ${globalSettings?.newsletterColor || "white"};
-          font-size: ${styles.fontSize || "14px"};
-          color: ${styles.color || "#666"};
-          font-family: ${
-            styles.fontFamily ||
-            globalSettings?.fontFamily ||
-            "Arial, sans-serif"
-          };
-        `;
+      display: inline-block;
+      white-space: nowrap;
+      padding: 0 12px;
+      background-color: ${globalSettings?.newsletterColor || "white"};
+      font-size: ${styles?.fontSize || "14px"};
+      color: ${styles?.color || "#666"};
+      font-family: ${
+        styles?.fontFamily || globalSettings?.fontFamily || "Arial, sans-serif"
+      };
+    `;
         dividerContainer.appendChild(text);
       }
 
@@ -657,47 +693,44 @@ const createExportElement = (element, globalSettings) => {
     case "social": {
       const socialContainer = document.createElement("div");
       socialContainer.style.cssText = `
-        position: absolute;
-        left: 0;
-        top: 0;
         width: 100%;
-        height: 100%;
         display: flex;
         align-items: center;
         justify-content: ${
-          styles.textAlign === "left"
+          styles?.textAlign === "left"
             ? "flex-start"
-            : styles.textAlign === "right"
+            : styles?.textAlign === "right"
             ? "flex-end"
             : "center"
         };
-        padding: ${buildSpacing(styles, "padding") || "16px"};
-        background-color: ${styles.backgroundColor || "transparent"};
-        border-radius: ${composeCornerRadius(styles, "0")};
+        padding: ${buildSpacing(styles, "padding") || "0"};
+        margin: ${buildSpacing(styles, "margin") || "0"};
+        background-color: ${styles?.backgroundColor || "transparent"};
+        border-radius: ${composeCornerRadius(styles) || "0"};
         border: ${getBorderStyles(styles)};
-        box-shadow: ${styles.boxShadow || "none"};
+        box-shadow: ${styles?.boxShadow || "none"};
         box-sizing: border-box;
       `;
 
       const iconsContainer = document.createElement("div");
       iconsContainer.style.cssText = `
         display: flex;
-        gap: ${styles.gap || "12px"};
+        gap: ${styles?.gap || "12px"};
       `;
 
       if (icons && icons.length > 0) {
         icons.forEach((icon) => {
-          const link = document.createElement("a");
-          link.href = icon.url || "#";
-          link.style.cssText = `
-            color: ${styles.iconColor || styles.color || "#666"};
+          const linkEl = document.createElement("a");
+          linkEl.href = icon.url || "#";
+          linkEl.style.cssText = `
+            color: ${styles?.iconColor || styles?.color || "#666"};
             text-decoration: none;
             display: inline-block;
             font-size: 24px;
             line-height: 1;
           `;
-          link.textContent = "●"; // Placeholder for social icon
-          iconsContainer.appendChild(link);
+          linkEl.textContent = "●";
+          iconsContainer.appendChild(linkEl);
         });
       }
 
@@ -707,47 +740,15 @@ const createExportElement = (element, globalSettings) => {
       break;
     }
 
-    case "section": {
-      const section = document.createElement("div");
-      section.style.cssText = `
-        position: relative;
-        width: 100%;
-        background-color: ${styles.backgroundColor || "#f9f9f9"};
-        border: ${getBorderStyles(styles)};
-        border-radius: ${composeCornerRadius(styles, "8px")};
-        padding: ${buildSpacing(styles, "padding") || "20px"};
-        margin: ${buildSpacing(styles, "margin") || "20px 0"};
-        box-shadow: ${styles.boxShadow || "none"};
-        display: block;
-        box-sizing: border-box;
-      `;
-
-      if (children && children.length > 0) {
-        children.forEach((child, index) => {
-          const childElement = createExportElement(child, globalSettings);
-          if (childElement) {
-            childElement.style.position = "relative";
-            childElement.style.marginBottom = "16px";
-            section.appendChild(childElement);
-          }
-        });
-      }
-
-      stripLayoutTransforms(section);
-      return section;
-    }
-
     default:
       const unknown = document.createElement("div");
       unknown.textContent = `Unknown element: ${type}`;
       unknown.style.cssText = `
-        position: absolute;
-        left: 0;
-        top: 0;
         color: #999;
         font-family: Arial, sans-serif;
         font-size: 14px;
-        padding: 8px;
+        padding: 0;
+        margin: 0;
         box-sizing: border-box;
       `;
       stripLayoutTransforms(unknown);
@@ -758,7 +759,10 @@ const createExportElement = (element, globalSettings) => {
   return div;
 };
 
-// Hover wrapper with Tailwind classes for blue outline and tooltip
+// ============================================
+// EDITABLE WRAPPER COMPONENT
+// ============================================
+
 const EditableWrapper = ({
   element,
   isEditable,
@@ -776,8 +780,9 @@ const EditableWrapper = ({
         : "relative outline-none"
     }
   >
-    {/* Blue outline and halo on hover */}
-    <div className="pointer-events-none absolute -inset-0.5 rounded-md opacity-0 transition-opacity duration-150 group-hover:opacity-100 ring-2 ring-blue-500/80 ring-offset-2 ring-offset-blue-200/40" />
+    {isEditable && (
+      <div className="pointer-events-none absolute -inset-0.5 rounded-md opacity-0 transition-opacity duration-150 group-hover:opacity-100 ring-2 ring-blue-500/80 ring-offset-2 ring-offset-blue-200/40" />
+    )}
     {children}
     {isEditable && tooltip && (
       <span className="pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 rounded-full bg-gray-900/90 text-white text-[11px] leading-none px-2.5 py-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 whitespace-nowrap">
@@ -787,36 +792,62 @@ const EditableWrapper = ({
   </div>
 );
 
-// Improved ResizableElementWrapper with better size handling
-const ResizableElementWrapper = ({
+// ============================================
+// ORDER-BASED ELEMENT WRAPPER
+// ============================================
+
+// ============================================
+// ORDER-BASED ELEMENT WRAPPER
+// ============================================
+
+const OrderBasedElementWrapper = ({
   children,
   element,
   updateElement,
   selected,
   onSelect,
   activeView,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
+  setSelectedElementId,
 }) => {
-  const elementRef = useRef(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef(null);
   const [isResizing, setIsResizing] = useState(false);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [startSize, setStartSize] = useState({ width: 0, height: 0 });
   const [handleType, setHandleType] = useState(null);
+  const [renderKey, setRenderKey] = useState(0);
 
-  // Only apply positioning for non-section elements in editor mode
-  const shouldUseAbsolutePositioning =
-    (activeView === "editor" || activeView === "preview") &&
-    element.type !== "section";
+  // ✅ Extract width/height for dependencies
+  const elementWidth = useMemo(
+    () => element.styles?.width,
+    [element.styles?.width]
+  );
+  const elementHeight = useMemo(
+    () => element.styles?.height,
+    [element.styles?.height]
+  );
+
+  // ✅ Force re-render when dimensions change
+  useEffect(() => {
+    if (selected && activeView === "editor") {
+      setRenderKey((prev) => prev + 1);
+    }
+  }, [elementWidth, elementHeight, selected, activeView]);
 
   const onMouseDown = (e, type) => {
     if (activeView !== "editor") return;
 
+    e.preventDefault();
     e.stopPropagation();
+
     setIsResizing(true);
     setHandleType(type);
     setStartPos({ x: e.clientX, y: e.clientY });
 
-    const rect = elementRef.current?.getBoundingClientRect();
+    const rect = containerRef.current?.getBoundingClientRect();
     if (rect) {
       setStartSize({
         width: rect.width,
@@ -825,229 +856,209 @@ const ResizableElementWrapper = ({
     }
   };
 
-  const onMouseUp = () => {
-    setIsDragging(false);
+  // ✅ CRITICAL FIX: Both width AND height calculations for all handle types
+  const handleMouseMove = useCallback(
+    (e) => {
+      if (!isResizing || !containerRef.current || activeView !== "editor")
+        return;
+
+      const dx = e.clientX - startPos.x;
+      const dy = e.clientY - startPos.y;
+
+      let newWidth = startSize.width;
+      let newHeight = startSize.height;
+
+      switch (handleType) {
+        case "right":
+          // ✅ RIGHT HANDLE: Only width changes
+          newWidth = Math.max(50, startSize.width + dx);
+          newHeight = startSize.height; // Keep original height
+          break;
+        case "bottom":
+          // ✅ BOTTOM HANDLE: Only height changes
+          newWidth = startSize.width; // Keep original width
+          newHeight = Math.max(30, startSize.height + dy);
+          break;
+        case "bottom-right":
+          // ✅ CORNER HANDLE: Both width and height change
+          newWidth = Math.max(50, startSize.width + dx);
+          newHeight = Math.max(30, startSize.height + dy);
+          break;
+        default:
+          break;
+      }
+
+      // ✅ Update BOTH width and height every time
+      updateElement(element.id, {
+        styles: {
+          ...element.styles,
+          width: `${Math.round(newWidth)}px`,
+          height: `${Math.round(newHeight)}px`,
+        },
+      });
+    },
+    [
+      isResizing,
+      activeView,
+      startPos,
+      startSize,
+      handleType,
+      element.id,
+      element.styles,
+      updateElement,
+    ]
+  );
+
+  const handleMouseUp = useCallback(() => {
     setIsResizing(false);
     setHandleType(null);
-  };
-
-  const onMouseMove = (e) => {
-    if (!isResizing || !elementRef.current || activeView !== "editor") return;
-
-    const dx = e.clientX - startPos.x;
-    const dy = e.clientY - startPos.y;
-
-    let newWidth = startSize.width;
-    let newHeight = startSize.height;
-
-    // Handle different resize directions
-    switch (handleType) {
-      case "top-left":
-        newWidth = Math.max(50, startSize.width - dx);
-        newHeight = Math.max(30, startSize.height - dy);
-        break;
-      case "top-right":
-        newWidth = Math.max(50, startSize.width + dx);
-        newHeight = Math.max(30, startSize.height - dy);
-        break;
-      case "bottom-left":
-        newWidth = Math.max(50, startSize.width - dx);
-        newHeight = Math.max(30, startSize.height + dy);
-        break;
-      case "bottom-right":
-        newWidth = Math.max(50, startSize.width + dx);
-        newHeight = Math.max(30, startSize.height + dy);
-        break;
-      case "top":
-        newHeight = Math.max(30, startSize.height - dy);
-        break;
-      case "right":
-        newWidth = Math.max(50, startSize.width + dx);
-        break;
-      case "bottom":
-        newHeight = Math.max(30, startSize.height + dy);
-        break;
-      case "left":
-        newWidth = Math.max(50, startSize.width - dx);
-        break;
-      default:
-        break;
-    }
-
-    updateElement(element.id, {
-      styles: {
-        ...element.styles,
-        width: `${Math.round(newWidth)}px`,
-        height: `${Math.round(newHeight)}px`,
-      },
-    });
-  };
-
-  const onDragMouseDown = (e) => {
-    if (activeView !== "editor") return;
-
-    e.stopPropagation();
-    setIsDragging(true);
-    setStartPos({ x: e.clientX, y: e.clientY });
-  };
-
-  const onDragMouseMove = (e) => {
-    if (!isDragging || isResizing || activeView !== "editor") return;
-
-    const dx = e.clientX - startPos.x;
-    const dy = e.clientY - startPos.y;
-
-    const currentLeft = parseFloat(element.styles?.left) || 0;
-    const currentTop = parseFloat(element.styles?.top) || 0;
-
-    updateElement(element.id, {
-      styles: {
-        ...element.styles,
-        left: `${currentLeft + dx}px`,
-        top: `${currentTop + dy}px`,
-      },
-    });
-
-    setStartPos({ x: e.clientX, y: e.clientY });
-  };
+  }, []);
 
   useEffect(() => {
-    if (activeView !== "editor") return;
+    if (!isResizing) return;
 
-    const handleMouseMove = (e) => {
-      onMouseMove(e);
-      onDragMouseMove(e);
-    };
-
-    const handleMouseUp = () => {
-      onMouseUp();
-    };
-
-    if (isDragging || isResizing) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-    }
+    document.addEventListener("mousemove", handleMouseMove, { passive: false });
+    document.addEventListener("mouseup", handleMouseUp);
 
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, isResizing, activeView]);
-
-  const resizeHandles = [
-    { type: "top-left", className: "top-0 left-0 cursor-nwse-resize" },
-    {
-      type: "top",
-      className: "top-0 left-1/2 -translate-x-1/2 cursor-ns-resize",
-    },
-    { type: "top-right", className: "top-0 right-0 cursor-nesw-resize" },
-    {
-      type: "right",
-      className: "top-1/2 right-0 -translate-y-1/2 cursor-ew-resize",
-    },
-    { type: "bottom-right", className: "bottom-0 right-0 cursor-nwse-resize" },
-    {
-      type: "bottom",
-      className: "bottom-0 left-1/2 -translate-x-1/2 cursor-ns-resize",
-    },
-    { type: "bottom-left", className: "bottom-0 left-0 cursor-nesw-resize" },
-    {
-      type: "left",
-      className: "top-1/2 left-0 -translate-y-1/2 cursor-ew-resize",
-    },
-  ];
-
-  const wrapperStyles = shouldUseAbsolutePositioning
-    ? {
-        position: "absolute",
-        left: element.styles?.left || "20px",
-        top: element.styles?.top || "20px",
-        width: element.styles?.width || "auto",
-        height: element.styles?.height || "50px",
-        zIndex: selected ? 10 : 1,
-      }
-    : {
-        position: "relative",
-        width: element.styles?.width || "100%",
-        height: element.styles?.height || "50px",
-        margin: element.styles?.margin || "0",
-        padding: element.styles?.padding || "0",
-      };
+  }, [isResizing, handleMouseMove, handleMouseUp]);
 
   return (
     <div
+      key={renderKey}
+      ref={containerRef}
       className={`${
-        selected && activeView === "editor" ? "ring-2 ring-blue-500" : ""
-      } ${activeView === "editor" ? "cursor-pointer" : ""} element-container`}
-      ref={elementRef}
-      style={{ ...wrapperStyles, touchAction: "none" }}
-      onMouseDown={(e) => {
+        selected && activeView === "editor"
+          ? "ring-2 ring-blue-500 ring-offset-1"
+          : ""
+      }`}
+      style={{
+        position: "relative",
+        width: "100%",
+        touchAction: "none",
+      }}
+      onClick={(e) => {
         if (activeView === "editor") {
           e.stopPropagation();
-          onSelect();
+          if (onSelect) onSelect();
+          else if (setSelectedElementId) setSelectedElementId(element.id);
         }
       }}
     >
-      {/* Editor controls - only show in editor mode */}
-      {selected && activeView === "editor" && (
-        <>
-          {/* Drag Handle - Left */}
-          <div
-            onMouseDown={onDragMouseDown}
-            className="absolute top-1/2 -translate-y-1/2 left-[-30px] w-6 h-6 bg-blue-500 rounded cursor-move z-20 flex items-center justify-center text-white text-xs shadow"
-            title="Drag element"
-            style={{ userSelect: "none" }}
-          >
-            ⋮⋮
-          </div>
+      {children}
 
-          {/* Drag Handle - Right */}
-          <div
-            onMouseDown={onDragMouseDown}
-            className="absolute top-1/2 -translate-y-1/2 right-[-30px] w-6 h-6 bg-blue-500 rounded cursor-move z-20 flex items-center justify-center text-white text-xs shadow"
-            title="Drag element"
-            style={{ userSelect: "none" }}
-          >
-            ⋮⋮
-          </div>
-
-          {/* Drag Handle - Top */}
-          <div
-            onMouseDown={onDragMouseDown}
-            className="absolute left-1/2 -translate-x-1/2 top-[-30px] w-6 h-6 bg-blue-500 rounded cursor-move z-20 flex items-center justify-center text-white text-xs shadow"
-            title="Drag element"
-            style={{ userSelect: "none" }}
-          >
-            ⋯
-          </div>
-
-          {/* Drag Handle - Bottom */}
-          <div
-            onMouseDown={onDragMouseDown}
-            className="absolute left-1/2 -translate-x-1/2 bottom-[-30px] w-6 h-6 bg-blue-500 rounded cursor-move z-20 flex items-center justify-center text-white text-xs shadow"
-            title="Drag element"
-            style={{ userSelect: "none" }}
-          >
-            ⋯
-          </div>
-
-          {/* Resize Handles - only for resizable elements */}
-          {element.type !== "divider" &&
-            resizeHandles.map((handle) => (
-              <div
-                key={handle.type}
-                className={`absolute w-3 h-3 bg-blue-500 border border-white z-10 ${handle.className}`}
-                onMouseDown={(e) => onMouseDown(e, handle.type)}
-                style={{ userSelect: "none" }}
-              />
-            ))}
-        </>
+      {/* Move Up Button */}
+      {selected && activeView === "editor" && canMoveUp && (
+        <button
+          onClick={onMoveUp}
+          className="absolute left-1/2 -translate-x-1/2 w-8 h-8 bg-blue-500 hover:bg-blue-600 rounded cursor-pointer z-20 flex items-center justify-center text-white shadow-lg transition-colors"
+          style={{
+            top: "-38px",
+            pointerEvents: "auto",
+          }}
+          title="Move up"
+        >
+          <ArrowUp className="w-4 h-4" />
+        </button>
       )}
 
-      {children}
+      {/* Move Down Button */}
+      {selected && activeView === "editor" && canMoveDown && (
+        <button
+          onClick={onMoveDown}
+          className="absolute left-1/2 -translate-x-1/2 w-8 h-8 bg-blue-500 hover:bg-blue-600 rounded cursor-pointer z-20 flex items-center justify-center text-white shadow-lg transition-colors"
+          style={{
+            bottom: "-38px",
+            pointerEvents: "auto",
+          }}
+          title="Move down"
+        >
+          <ArrowDown className="w-4 h-4" />
+        </button>
+      )}
+
+      {/* ✅ RESIZE HANDLES - Fixed positioning that follows container */}
+      {selected && activeView === "editor" && element.type !== "divider" && (
+        <>
+          {/* Bottom-Right Corner - BOTH width & height */}
+          <div
+            onMouseDown={(e) => onMouseDown(e, "bottom-right")}
+            style={{
+              position: "absolute",
+              bottom: "-6px",
+              right: "-6px",
+              width: "12px",
+              height: "12px",
+              backgroundColor: "#3b82f6",
+              border: "2px solid white",
+              borderRadius: "2px",
+              cursor: "nwse-resize",
+              zIndex: 20,
+              userSelect: "none",
+              pointerEvents: "auto",
+              boxShadow: "0 0 6px rgba(0,0,0,0.3)",
+            }}
+            className="hover:bg-blue-600 active:bg-blue-700 transition-colors"
+            title="Resize (drag corner)"
+          />
+
+          {/* Right Edge - WIDTH ONLY */}
+          <div
+            onMouseDown={(e) => onMouseDown(e, "right")}
+            style={{
+              position: "absolute",
+              top: "50%",
+              right: "-6px",
+              width: "12px",
+              height: "12px",
+              backgroundColor: "#3b82f6",
+              border: "2px solid white",
+              borderRadius: "2px",
+              cursor: "ew-resize",
+              zIndex: 20,
+              userSelect: "none",
+              pointerEvents: "auto",
+              transform: "translateY(-50%)",
+              boxShadow: "0 0 6px rgba(0,0,0,0.3)",
+            }}
+            className="hover:bg-blue-600 active:bg-blue-700 transition-colors"
+            title="Resize width (drag side)"
+          />
+
+          {/* Bottom Edge - HEIGHT ONLY */}
+          <div
+            onMouseDown={(e) => onMouseDown(e, "bottom")}
+            style={{
+              position: "absolute",
+              bottom: "-6px",
+              left: "50%",
+              width: "12px",
+              height: "12px",
+              backgroundColor: "#3b82f6",
+              border: "2px solid white",
+              borderRadius: "2px",
+              cursor: "ns-resize",
+              zIndex: 20,
+              userSelect: "none",
+              pointerEvents: "auto",
+              transform: "translateX(-50%)",
+              boxShadow: "0 0 6px rgba(0,0,0,0.3)",
+            }}
+            className="hover:bg-blue-600 active:bg-blue-700 transition-colors"
+            title="Resize height (drag bottom)"
+          />
+        </>
+      )}
     </div>
   );
 };
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
 
 export default function ElementRenderer({
   element,
@@ -1057,23 +1068,34 @@ export default function ElementRenderer({
   activeView,
   setSelectedElementId,
   globalSettings,
+  onMoveUp,
+  onMoveDown,
+  selectedElementId,
+  canMoveUp,
+  canMoveDown,
+  onChildMoveUp,
+  onChildMoveDown,
+  parentId,
+  isContainer,
+  depth = 0,
+  parentElement,
+  children,
 }) {
   const fileInputRef = useRef(null);
-  const { id, type, content, styles, link, icons, children } = element;
+  const { id, type, content, styles, link, icons } = element;
+  const elementChildren = element.children || [];
 
-  // ✅ CLEAN EXPORT FIX: Only apply editor helpers in editor mode
   const editorHelpers = activeView === "editor" ? "editor-border" : "";
+  const isEditable = activeView === "editor";
+  const isContainerType = canHaveChildren(type);
 
-  // Helper function to get complete styles including border properties
   const getCompleteStyles = (elementStyles) => {
     const baseStyles = { ...elementStyles };
 
-    // Handle border properties
     if (elementStyles?.borderWidth && elementStyles?.borderColor) {
       baseStyles.border = `${elementStyles.borderWidth} solid ${elementStyles.borderColor}`;
     }
 
-    // Ensure all common properties are preserved
     return {
       backgroundColor: baseStyles.backgroundColor,
       color: baseStyles.color,
@@ -1086,14 +1108,9 @@ export default function ElementRenderer({
       margin: baseStyles.margin,
       fontSize: baseStyles.fontSize,
       fontWeight: baseStyles.fontWeight,
-      // Add these for text formatting:
       fontStyle: baseStyles.fontStyle,
       textDecoration: baseStyles.textDecoration,
       textShadow: baseStyles.textShadow,
-      shadowOffsetX: baseStyles.shadowOffsetX,
-      shadowOffsetY: baseStyles.shadowOffsetY,
-      shadowBlurRadius: baseStyles.shadowBlurRadius,
-      shadowColor: baseStyles.shadowColor,
       textAlign: baseStyles.textAlign,
       boxShadow: baseStyles.boxShadow,
       opacity: baseStyles.opacity,
@@ -1101,85 +1118,141 @@ export default function ElementRenderer({
     };
   };
 
+  const contentStyles = getCompleteStyles({
+    ...styles,
+    position: undefined,
+    left: undefined,
+    top: undefined,
+  });
+
   const renderContent = () => {
-    // Content styles without positioning (handled by wrapper) but with complete styling
-    const contentStyles = getCompleteStyles({
-      ...styles,
-      position: undefined,
-      left: undefined,
-      top: undefined,
-      width: "100%",
-      height: "100%",
-    });
+    // CONTAINER TYPES
+    if (isContainerType) {
+      let containerStyle = {
+        width: "100%",
+        boxSizing: "border-box",
+        position: "relative",
+      };
 
-    const isEditable = activeView === "editor";
+      switch (type) {
+        case "section":
+          containerStyle = {
+            ...containerStyle,
+            backgroundColor: styles?.backgroundColor,
+            border: getBorderStyles(styles),
+            borderRadius: composeCornerRadius(styles),
+            padding: buildSpacing(styles, "padding"),
+            margin: buildSpacing(styles, "margin"),
+            boxShadow: styles?.boxShadow,
+          };
+          break;
 
-    switch (type) {
-      case "section":
-        return (
-          <div
-            className={`section-container ${
-              activeView === "preview" ? "preview-section" : ""
-            }`}
-            style={{
-              ...contentStyles,
-              display: "block",
-              backgroundColor: styles?.backgroundColor || "#f9f9f9",
-              border:
-                styles?.borderWidth && styles?.borderColor
-                  ? `${styles.borderWidth} solid ${styles.borderColor}`
-                  : styles?.border || "none",
-              borderRadius: composeCornerRadius(styles, "8px"),
-              padding: buildSpacing(styles, "padding") || "20px",
-              margin: styles?.margin || "20px 0",
-              boxShadow: styles?.boxShadow || "none",
-            }}
-          >
-            {children && children.length > 0 ? (
-              <div className="section-content" style={{ display: "block" }}>
-                {children.map((child) => (
-                  <div
-                    key={child.id}
-                    className="section-child"
-                    style={{ marginBottom: "16px" }}
-                  >
+        case "grid":
+          containerStyle = {
+            gridTemplateColumns: element.styles?.gridTemplateColumns,
+            gap: element.styles?.gap,
+            backgroundColor: element.styles?.backgroundColor,
+            border:
+              element.styles?.borderWidth &&
+              element.styles?.borderStyle &&
+              element.styles?.borderColor
+                ? `${element.styles.borderWidth} ${element.styles.borderStyle} ${element.styles.borderColor}`
+                : undefined,
+            padding: buildSpacing(element.styles, "padding"),
+            borderRadius: composeCornerRadius(element.styles),
+            margin: buildSpacing(element.styles, "margin"),
+            width: "100%",
+            boxSizing: "border-box",
+            justifyContent: "start",
+            justifyItems: "start",
+            alignItems: "start",
+            justifySelf: "start",
+          };
+          break;
+
+        case "item":
+          containerStyle = {
+            ...containerStyle,
+            backgroundColor: styles?.backgroundColor,
+            border: getBorderStyles(styles),
+            padding: buildSpacing(styles, "padding"),
+            borderRadius: composeCornerRadius(styles),
+            margin: buildSpacing(styles, "margin"),
+          };
+          break;
+
+        case "column":
+          containerStyle = {
+            ...containerStyle,
+            display: "flex",
+            flexDirection: "column",
+            gap: styles?.gap,
+            backgroundColor: styles?.backgroundColor,
+            border: getBorderStyles(styles),
+            padding: buildSpacing(styles, "padding"),
+            borderRadius: composeCornerRadius(styles),
+            margin: buildSpacing(styles, "margin"),
+          };
+          break;
+      }
+
+      return (
+        <div style={containerStyle}>
+          {children || (
+            <>
+              {elementChildren.length > 0 ? (
+                <div className="nested-children">
+                  {elementChildren.map((child, index) => (
                     <ElementRenderer
+                      key={child.id}
                       element={child}
-                      updateElement={(childId, newProps) => {
-                        const updatedChildren = children.map((c) =>
-                          c.id === childId ? { ...c, ...newProps } : c
-                        );
-                        updateElement(id, { children: updatedChildren });
-                      }}
+                      updateElement={updateElement}
                       handleImageUpload={handleImageUpload}
-                      selected={false}
+                      selectedElementId={selectedElementId}
                       activeView={activeView}
+                      selected={selectedElementId === child.id}
                       setSelectedElementId={setSelectedElementId}
                       globalSettings={globalSettings}
+                      onMoveUp={
+                        onChildMoveUp
+                          ? () => onChildMoveUp(child.id)
+                          : undefined
+                      }
+                      onMoveDown={
+                        onChildMoveDown
+                          ? () => onChildMoveDown(child.id)
+                          : undefined
+                      }
+                      canMoveUp={index > 0}
+                      canMoveDown={index < elementChildren.length - 1}
+                      parentId={id}
+                      depth={depth + 1}
                     />
+                  ))}
+                </div>
+              ) : (
+                isEditable && (
+                  <div className="empty-container text-center py-8 text-gray-400 text-sm border-2 border-dashed border-gray-300 rounded">
+                    <Plus className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                    <p>Drop elements here</p>
+                    <p className="text-xs mt-1">This {type} is empty</p>
                   </div>
-                ))}
-              </div>
-            ) : (
-              activeView === "editor" && (
-                <p className="text-gray-400 text-sm text-center py-8">
-                  Empty Section
-                </p>
-              )
-            )}
-          </div>
-        );
+                )
+              )}
+            </>
+          )}
+        </div>
+      );
+    }
 
+    // NON-CONTAINER ELEMENTS
+    switch (type) {
       case "shape": {
-        const isEditable = activeView === "editor";
         const shapeType = styles?.shapeType || "rectangle";
-
-        // Shape-specific styling with fixed corner radius
         const isPoly = isPolygonShape(shapeType);
         const shapeRadius = getShapeBorderRadius(shapeType, styles);
         const shapeClip = getShapeClipPath(shapeType);
 
-        // Generate fill styles
         const getFillStyle = () => {
           const fillType = styles?.fillType || "solid";
 
@@ -1218,34 +1291,11 @@ export default function ElementRenderer({
                 position: "relative",
                 width: `${shapeWidth}px`,
                 height: `${shapeHeight}px`,
-                transform: styles?.rotation
-                  ? `rotate(${styles.rotation})`
-                  : "none", // ✅ ADD ROTATION HERE
-                transformOrigin: "center center", // ✅ ADD THIS
+                margin: "0 auto",
                 boxSizing: "border-box",
                 display: "flex",
-                alignItems:
-                  styles?.verticalAlign === "bottom"
-                    ? "flex-end"
-                    : styles?.verticalAlign === "center"
-                    ? "center"
-                    : "flex-start",
-                justifyContent:
-                  styles?.horizontalAlign === "right"
-                    ? "flex-end"
-                    : styles?.horizontalAlign === "center"
-                    ? "center"
-                    : "flex-start",
-                margin: `${styles?.marginTop || "0px"} ${
-                  styles?.marginRight || "0px"
-                } ${styles?.marginBottom || "0px"} ${
-                  styles?.marginLeft || "0px"
-                }`,
-                padding: `${styles?.paddingTop || "0px"} ${
-                  styles?.paddingRight || "0px"
-                } ${styles?.paddingBottom || "0px"} ${
-                  styles?.paddingLeft || "0px"
-                }`,
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
               <div
@@ -1253,46 +1303,24 @@ export default function ElementRenderer({
                   width: "100%",
                   height: "100%",
                   background: getFillStyle(),
-                  // Important: only set clipPath for polygon shapes
                   clipPath: isPoly ? shapeClip : "none",
                   WebkitClipPath: isPoly ? shapeClip : "none",
-                  // Important: for non-polygon shapes, use borderRadius so corners work
-                  borderRadius: isPoly ? "0px" : shapeRadius,
-                  border:
-                    styles?.borderWidth && styles?.borderColor
-                      ? `${styles.borderWidth} ${
-                          styles.borderStyle || "solid"
-                        } ${styles.borderColor}`
-                      : "none",
-
-                  boxShadow: styles?.boxShadow || "none",
-                  opacity: styles?.opacity || "1",
-                  transform: styles?.transform || "none",
+                  borderRadius: isPoly ? "0" : shapeRadius,
+                  border: getBorderStyles(styles),
+                  boxShadow: styles?.boxShadow,
+                  opacity: styles?.opacity,
                   boxSizing: "border-box",
-                  alignSelf:
-                    styles?.verticalAlign === "bottom"
-                      ? "flex-end"
-                      : styles?.verticalAlign === "center"
-                      ? "center"
-                      : "flex-start",
-                  justifySelf:
-                    styles?.horizontalAlign === "right"
-                      ? "flex-end"
-                      : styles?.horizontalAlign === "center"
-                      ? "center"
-                      : "flex-start",
                 }}
               />
-
-              {isEditable && (
-                <div className="absolute inset-0 pointer-events-none border border-dashed border-blue-300 opacity-50" />
-              )}
             </div>
           </EditableWrapper>
         );
       }
 
-      case "text":
+      case "text": {
+        const textWidth = getPixelDimension(styles?.width, 100);
+        const textHeight = getPixelDimension(styles?.height, 100);
+
         return (
           <EditableWrapper
             element={element}
@@ -1306,35 +1334,37 @@ export default function ElementRenderer({
                 isEditable ? "outline-none cursor-text" : "outline-none"
               }
               style={{
-                ...contentStyles,
-                backgroundColor: contentStyles.backgroundColor,
-                color: contentStyles.color,
-                borderRadius: composeCornerRadius(contentStyles, "0"),
-                border: contentStyles.border,
-                padding: buildSpacing(contentStyles, "padding"),
-                fontSize: contentStyles.fontSize,
-                fontWeight: contentStyles.fontWeight,
-                fontStyle: contentStyles.fontStyle,
-                textDecoration: contentStyles.textDecoration,
-                textShadow: contentStyles.textShadow,
-                textAlign: getConsistentTextAlign(
-                  contentStyles.textAlign || "left"
-                ),
-                boxShadow: contentStyles.boxShadow,
-                lineHeight: contentStyles.lineHeight || "1.6",
-                letterSpacing: contentStyles.letterSpacing || "normal",
-                wordSpacing: contentStyles.wordSpacing || "normal",
-                textIndent: contentStyles.textIndent || "0",
-                textTransform: contentStyles.textTransform || "none",
-                verticalAlign: "baseline",
-                textRendering: "geometricPrecision",
-                WebkitFontSmoothing: "antialiased",
-                MozOsxFontSmoothing: "grayscale",
+                width: "100%",
+                maxWidth: `${textWidth}px`,
+                minHeight: `${textHeight}px`,
+                margin: buildSpacing(styles, "margin"),
+                backgroundColor: styles?.backgroundColor,
+                color: styles?.color,
+                borderRadius: composeCornerRadius(styles),
+                border: getBorderStyles(styles),
+                padding: buildSpacing(styles, "padding"),
+                fontSize: styles?.fontSize,
+                fontWeight: normalizeWeight(styles?.fontWeight),
+                fontStyle: styles?.fontStyle,
+                textDecoration: styles?.textDecoration,
+                textShadow: styles?.textShadow,
+                textAlign: getConsistentTextAlign(styles?.textAlign || "left"),
+                boxShadow: styles?.boxShadow,
+                lineHeight: styles?.lineHeight,
+                letterSpacing: styles?.letterSpacing,
+                wordSpacing: styles?.wordSpacing,
+                textIndent: styles?.textIndent,
+                textTransform: styles?.textTransform,
+                whiteSpace: "pre-wrap",
                 overflowWrap: "break-word",
                 wordBreak: "break-word",
-                whiteSpace: "pre-wrap",
                 display: "block",
                 boxSizing: "border-box",
+                fontFamily:
+                  styles?.fontFamily ||
+                  globalSettings?.fontFamily ||
+                  "Arial, sans-serif",
+                opacity: styles?.opacity,
               }}
               onBlur={(e) => {
                 if (isEditable) {
@@ -1346,8 +1376,12 @@ export default function ElementRenderer({
             </div>
           </EditableWrapper>
         );
+      }
 
-      case "header":
+      case "header": {
+        const headerWidth = getPixelDimension(styles?.width, 100);
+        const headerHeight = getPixelDimension(styles?.height, 60);
+
         return (
           <EditableWrapper
             element={element}
@@ -1361,36 +1395,37 @@ export default function ElementRenderer({
                 isEditable ? "outline-none cursor-text" : "outline-none"
               }
               style={{
-                ...contentStyles,
-                backgroundColor: contentStyles.backgroundColor,
-                color: contentStyles.color,
-                borderRadius: composeCornerRadius(contentStyles, "0"),
-                border: contentStyles.border,
-                padding: buildSpacing(contentStyles, "padding"),
-                fontSize: contentStyles.fontSize,
-                fontWeight: contentStyles.fontWeight,
-                fontStyle: contentStyles.fontStyle,
-                textDecoration: contentStyles.textDecoration,
-                textShadow: contentStyles.textShadow,
-                textAlign: getConsistentTextAlign(
-                  contentStyles.textAlign || "left"
-                ),
-                boxShadow: contentStyles.boxShadow,
-                lineHeight: contentStyles.lineHeight || "1.4",
-                letterSpacing: contentStyles.letterSpacing || "normal",
-                wordSpacing: contentStyles.wordSpacing || "normal",
-                textIndent: contentStyles.textIndent || "0",
-                textTransform: contentStyles.textTransform || "none",
-                verticalAlign: "baseline",
-                textRendering: "geometricPrecision",
-                WebkitFontSmoothing: "antialiased",
-                MozOsxFontSmoothing: "grayscale",
+                width: "100%",
+                maxWidth: `${headerWidth}px`,
+                minHeight: `${headerHeight}px`,
+                margin: buildSpacing(styles, "margin"),
+                backgroundColor: styles?.backgroundColor,
+                color: styles?.color,
+                borderRadius: composeCornerRadius(styles),
+                border: getBorderStyles(styles),
+                padding: buildSpacing(styles, "padding"),
+                fontSize: styles?.fontSize,
+                fontWeight: normalizeWeight(styles?.fontWeight),
+                fontStyle: styles?.fontStyle,
+                textDecoration: styles?.textDecoration,
+                textShadow: styles?.textShadow,
+                textAlign: getConsistentTextAlign(styles?.textAlign || "left"),
+                boxShadow: styles?.boxShadow,
+                lineHeight: styles?.lineHeight,
+                letterSpacing: styles?.letterSpacing,
+                wordSpacing: styles?.wordSpacing,
+                textIndent: styles?.textIndent,
+                textTransform: styles?.textTransform,
+                whiteSpace: "pre-wrap",
                 overflowWrap: "break-word",
                 wordBreak: "break-word",
-                whiteSpace: "pre-wrap",
                 display: "block",
                 boxSizing: "border-box",
-                margin: 0,
+                fontFamily:
+                  styles?.fontFamily ||
+                  globalSettings?.fontFamily ||
+                  "Arial, sans-serif",
+                opacity: styles?.opacity,
               }}
               onBlur={(e) => {
                 if (isEditable) {
@@ -1402,100 +1437,128 @@ export default function ElementRenderer({
             </h2>
           </EditableWrapper>
         );
+      }
 
       case "image": {
-        const isEditable = activeView === "editor";
+        const imageWidth = getPixelDimension(styles?.width, 600);
+        const imageHeight = getPixelDimension(styles?.height, 400);
         const isImagePresent =
           content &&
           (content.startsWith("data:") || content.startsWith("http"));
+
         const onDblClick = () => {
           if (!isBrowser() || !isEditable) return;
-          const ev = new CustomEvent("open-image-upload", { detail: { id } });
+          const ev = new CustomEvent("open-image-upload", {
+            detail: { id },
+          });
           window.dispatchEvent(ev);
         };
 
-        const boxWidth = styles?.width || "300px";
-        const boxHeight = styles?.height || "200px";
-        const fit = styles?.objectFit || "cover";
         const shapeType = styles?.shapeType || "rectangle";
-
-        // Get shape-specific styling with fixed corner radius
         const isPoly = isPolygonShape(shapeType);
         const imgRadius = getShapeBorderRadius(shapeType, styles);
         const imgClip = getShapeClipPath(shapeType);
+
+        // ✅ NEW: Get crop data if applied
+        const hasCropData =
+          element.cropData && element.cropData.width && element.cropData.height;
+        const cropWidth = hasCropData ? element.cropData.width : imageWidth;
+        const cropHeight = hasCropData ? element.cropData.height : imageHeight;
 
         return (
           <EditableWrapper
             element={element}
             isEditable={isEditable}
-            tooltip="Double‑click to change"
+            tooltip="Double-click to change"
             onDoubleClick={onDblClick}
           >
             <div
               className={`image-element ${editorHelpers}`}
               style={{
+                width: "100%",
+                maxWidth: `${imageWidth}px`,
+                height: `${imageHeight}px`,
+                margin: buildSpacing(styles, "margin"),
                 position: "relative",
-                width: boxWidth,
-                height: boxHeight,
-                backgroundColor: "transparent",
-                border:
-                  styles?.borderWidth && styles?.borderColor
-                    ? `${styles.borderWidth} solid ${styles.borderColor}`
-                    : styles?.border || "none",
-                boxShadow: styles?.boxShadow || "none",
-                opacity: styles?.opacity ?? 1,
-                overflow: "hidden",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                transform: element.styles?.transform || "none",
-                transformOrigin:
-                  element.styles?.transformOrigin || "center center",
-                // Important: only polygon shapes should use clip-path
+                overflow: "hidden",
+                backgroundColor: styles?.backgroundColor,
+                border: getBorderStyles(styles),
+                borderRadius: isPoly ? "0" : imgRadius,
+                boxShadow: styles?.boxShadow,
+                opacity: styles?.opacity,
                 clipPath: isPoly ? imgClip : "none",
                 WebkitClipPath: isPoly ? imgClip : "none",
-                // Important: for non-polygon shapes, use borderRadius so corners round
-                borderRadius: isPoly ? "0px" : imgRadius,
+                boxSizing: "border-box",
               }}
             >
               {isImagePresent ? (
-                <img
-                  src={content}
-                  alt="Newsletter"
-                  draggable={false}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: fit,
-                    display: "block",
-                  }}
-                />
-              ) : (
-                isEditable && (
-                  <div className="text-gray-500 text-center pointer-events-none">
-                    <ImageIcon className="w-12 h-12 mx-auto mb-2" />
-                    <p>Double-click to add image</p>
-                  </div>
-                )
-              )}
-              {isEditable && (
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={fileInputRef}
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (file) handleImageUpload(id, file);
-                  }}
-                />
-              )}
+                <>
+                  <img
+                    src={content}
+                    alt="Newsletter"
+                    draggable={false}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: styles?.objectFit || "cover",
+                      display: "block",
+                      borderRadius: "inherit",
+                      boxSizing: "border-box",
+                    }}
+                  />
+
+                  {/* ✅ NEW: Display crop indicator badge */}
+                  {hasCropData && isEditable && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "8px",
+                        right: "8px",
+                        backgroundColor: "rgba(0, 0, 0, 0.7)",
+                        color: "#fff",
+                        padding: "4px 8px",
+                        borderRadius: "4px",
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        zIndex: 10,
+                        pointerEvents: "none",
+                      }}
+                    >
+                      ✓ Cropped
+                    </div>
+                  )}
+                </>
+              ) : isEditable ? (
+                <div className="text-gray-500 text-center pointer-events-none">
+                  <ImageIcon className="w-12 h-12 mx-auto mb-2" />
+                  <p>Double-click to add image</p>
+                </div>
+              ) : null}
+
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleImageUpload(id, file);
+                  }
+                }}
+              />
             </div>
           </EditableWrapper>
         );
       }
 
-      case "button":
+      case "button": {
+        const buttonWidth = getPixelDimension(styles?.width, 200);
+        const buttonHeight = getPixelDimension(styles?.height, 50);
+
         return (
           <EditableWrapper
             element={element}
@@ -1506,7 +1569,9 @@ export default function ElementRenderer({
               className={`button-container ${editorHelpers}`}
               style={{
                 width: "100%",
-                height: "100%",
+                maxWidth: `${buttonWidth}px`,
+                height: `${buttonHeight}px`,
+                margin: buildSpacing(styles, "margin"),
                 display: "flex",
                 alignItems: "center",
                 justifyContent:
@@ -1515,54 +1580,36 @@ export default function ElementRenderer({
                     : contentStyles.textAlign === "right"
                     ? "flex-end"
                     : "center",
-                padding: "0",
-                margin: "0",
-                backgroundColor: "transparent",
                 boxSizing: "border-box",
               }}
             >
               <a
                 href={link || "#"}
                 style={{
-                  padding:
-                    buildSpacing(contentStyles, "padding") || "12px 24px",
+                  padding: buildSpacing(contentStyles, "padding"),
                   textDecoration: "none",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   textAlign: "center",
-                  borderRadius: composeCornerRadius(contentStyles, "6px"),
-                  backgroundColor: contentStyles.backgroundColor || "#007bff",
-                  color: contentStyles.color || "#fff",
-                  border:
-                    contentStyles.borderWidth && contentStyles.borderColor
-                      ? `${contentStyles.borderWidth} solid ${contentStyles.borderColor}`
-                      : contentStyles.border || "none",
-                  fontSize: contentStyles.fontSize || "16px",
-                  fontWeight: contentStyles.fontWeight || "400",
-                  fontStyle: contentStyles.fontStyle || "normal",
-                  textShadow: contentStyles.textShadow || "none",
+                  borderRadius: composeCornerRadius(contentStyles),
+                  backgroundColor: contentStyles.backgroundColor,
+                  color: contentStyles.color,
+                  border: getBorderStyles(contentStyles),
+                  fontSize: contentStyles.fontSize,
+                  fontWeight: contentStyles.fontWeight,
+                  fontStyle: contentStyles.fontStyle,
+                  textShadow: contentStyles.textShadow,
                   fontFamily:
                     contentStyles.fontFamily ||
                     globalSettings?.fontFamily ||
                     "Arial, sans-serif",
-                  boxShadow: contentStyles.boxShadow || "none",
-                  opacity: contentStyles.opacity || "1",
+                  boxShadow: contentStyles.boxShadow,
+                  opacity: contentStyles.opacity,
                   cursor: activeView === "preview" ? "pointer" : "default",
                   width: "100%",
                   height: "100%",
-                  margin: "0",
                   boxSizing: "border-box",
-                  letterSpacing: contentStyles.letterSpacing || "normal",
-                  wordSpacing: contentStyles.wordSpacing || "normal",
-                  textTransform: contentStyles.textTransform || "none",
-                  lineHeight: contentStyles.lineHeight || "1.4",
-                  verticalAlign: "baseline",
-                  textRendering: "geometricPrecision",
-                  WebkitFontSmoothing: "antialiased",
-                  MozOsxFontSmoothing: "grayscale",
-                  whiteSpace: "nowrap",
-                  overflowWrap: "break-word",
                 }}
                 contentEditable={isEditable}
                 suppressContentEditableWarning
@@ -1584,7 +1631,11 @@ export default function ElementRenderer({
             </div>
           </EditableWrapper>
         );
-      case "divider":
+      }
+
+      case "divider": {
+        const dividerWidth = getPixelDimension(styles?.width, 100);
+
         return (
           <EditableWrapper
             element={element}
@@ -1595,7 +1646,9 @@ export default function ElementRenderer({
               className={`divider-element ${editorHelpers}`}
               style={{
                 width: "100%",
-                height: contentStyles.height || "20px",
+                maxWidth: `${dividerWidth}%`,
+                height: "20px",
+                margin: buildSpacing(styles, "margin"),
                 display: "flex",
                 alignItems: "center",
                 justifyContent:
@@ -1619,7 +1672,7 @@ export default function ElementRenderer({
                   } ${
                     styles?.borderColor || styles?.backgroundColor || "#d1d5db"
                   }`,
-                  height: "20px",
+                  height: "1px",
                 }}
               />
               {content && (
@@ -1629,8 +1682,8 @@ export default function ElementRenderer({
                     display: "inline-block",
                     padding: "0 12px",
                     backgroundColor: globalSettings?.newsletterColor || "white",
-                    fontSize: contentStyles.fontSize || "14px",
-                    color: contentStyles.color || "#666",
+                    fontSize: contentStyles.fontSize,
+                    color: contentStyles.color,
                   }}
                 >
                   {content}
@@ -1639,8 +1692,12 @@ export default function ElementRenderer({
             </div>
           </EditableWrapper>
         );
+      }
 
-      case "social":
+      case "social": {
+        const socialWidth = getPixelDimension(styles?.width, 300);
+        const socialHeight = getPixelDimension(styles?.height, 60);
+
         return (
           <EditableWrapper
             element={element}
@@ -1651,7 +1708,9 @@ export default function ElementRenderer({
               className={`social-element ${editorHelpers}`}
               style={{
                 width: "100%",
-                height: "100%",
+                maxWidth: `${socialWidth}px`,
+                height: `${socialHeight}px`,
+                margin: buildSpacing(styles, "margin"),
                 display: "flex",
                 alignItems: "center",
                 justifyContent:
@@ -1660,9 +1719,9 @@ export default function ElementRenderer({
                     : contentStyles.textAlign === "right"
                     ? "flex-end"
                     : "center",
-                padding: buildSpacing(contentStyles, "padding") || "16px",
+                padding: buildSpacing(contentStyles, "padding"),
                 backgroundColor: contentStyles.backgroundColor,
-                borderRadius: composeCornerRadius(contentStyles, "0"),
+                borderRadius: composeCornerRadius(contentStyles),
                 border: contentStyles.border,
                 boxShadow: contentStyles.boxShadow,
               }}
@@ -1703,6 +1762,7 @@ export default function ElementRenderer({
             </div>
           </EditableWrapper>
         );
+      }
 
       default:
         return (
@@ -1720,7 +1780,7 @@ export default function ElementRenderer({
   };
 
   return (
-    <ResizableElementWrapper
+    <OrderBasedElementWrapper
       element={element}
       updateElement={updateElement}
       handleImageUpload={handleImageUpload}
@@ -1731,13 +1791,27 @@ export default function ElementRenderer({
         }
       }}
       activeView={activeView}
+      onMoveUp={onMoveUp}
+      onMoveDown={onMoveDown}
+      canMoveUp={canMoveUp}
+      canMoveDown={canMoveDown}
+      setSelectedElementId={setSelectedElementId}
+      style={{
+        width: parentElement && parentElement.type === "grid" ? "100%" : "auto",
+        height:
+          parentElement && parentElement.type === "grid" ? "100%" : "auto",
+        boxSizing: "border-box",
+      }}
     >
       {renderContent()}
-    </ResizableElementWrapper>
+    </OrderBasedElementWrapper>
   );
 }
 
-// Export the essential functions that need to be accessible
+// ============================================
+// EXPORTS
+// ============================================
+
 export {
   createExportElement,
   ensureFontsLoaded,
@@ -1750,4 +1824,6 @@ export {
   getShapeBorderRadius,
   composeCornerRadius,
   isPolygonShape,
+  canHaveChildren,
+  CONTAINER_TYPES,
 };

@@ -1,233 +1,149 @@
+// redux/slices/templateSlice.js - UPDATED WITH PUBLIC TEMPLATES SUPPORT
+
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { templateService } from "../../api/services/templateService";
-import azureBlobService from "../../api/services/azureBlobService";
-import { getWorkId } from "../../api/utils/storageHelper";
 
 // ============================================================================
 // ASYNC THUNKS
 // ============================================================================
 
-/**
- * Fetch all templates for current work
- */
+// Fetch all templates for current workspace (private templates only)
 export const fetchTemplates = createAsyncThunk(
   "template/fetchTemplates",
   async (_, { rejectWithValue }) => {
     try {
       const response = await templateService.getTemplatesByWorkId();
-      return response.data || response;
+      // Filter out public templates - only show user's private templates
+      const userTemplates = response.data.data.filter((t) => !t.isPublic);
+      return userTemplates;
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch templates"
+      );
     }
   }
 );
 
-/**
- * Fetch template by ID
- */
-export const fetchTemplateById = createAsyncThunk(
-  "template/fetchTemplateById",
-  async (templateId, { rejectWithValue }) => {
+// Fetch public templates for gallery
+export const fetchPublicTemplates = createAsyncThunk(
+  "template/fetchPublicTemplates",
+  async (_, { rejectWithValue }) => {
     try {
-      const response = await templateService.getTemplateById(templateId);
-      return response.data || response;
+      const response = await templateService.getPublicTemplates();
+      return response.data.data || [];
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch public templates"
+      );
     }
   }
 );
 
-/**
- * Delete template
- */
+// Delete template
 export const deleteTemplate = createAsyncThunk(
   "template/deleteTemplate",
   async (templateId, { rejectWithValue }) => {
     try {
       await templateService.deleteTemplate(templateId);
-      return templateId;
+      return templateId; // Return ID for removal from state
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to delete template"
+      );
     }
   }
 );
 
-/**
- * Duplicate template
- */
+// Duplicate template
 export const duplicateTemplate = createAsyncThunk(
   "template/duplicateTemplate",
-  async ({ template, newName }, { rejectWithValue }) => {
+  async (templateData, { rejectWithValue }) => {
     try {
-      // Fetch template data from Azure
-      const templateData = await azureBlobService.fetchAzureData(template.dataUrl);
-      
-      // Update name
-      const duplicatedData = {
-        ...templateData,
-        name: newName || `${template.name} (Copy)`,
+      const response = await templateService.createTemplate(templateData);
+      return response.data.data; // New template object
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to duplicate template"
+      );
+    }
+  }
+);
+
+// Create template from gallery (use a public template)
+export const createFromGalleryTemplate = createAsyncThunk(
+  "template/createFromGalleryTemplate",
+  async (galleryTemplate, { rejectWithValue }) => {
+    try {
+      // Create a new private template based on the gallery template
+      const newTemplate = {
+        name: `${galleryTemplate.name} (Copy)`,
+        elements: galleryTemplate.elements,
+        globalSettings: galleryTemplate.globalSettings,
+        previewImageUrl: galleryTemplate.previewImageUrl,
+        isPublic: false, // Make it private by default
       };
 
-      const workId = getWorkId();
-      
-      // Upload JSON to Azure
-      const jsonBlobName = `work_${workId}/templates/${Date.now()}_${Math.random().toString(36).substr(2, 9)}_data.json`;
-      const jsonData = await azureBlobService.uploadRawData(
-        duplicatedData,
-        jsonBlobName,
-        {
-          folder: `work_${workId}/templates`,
-          container: "templates",
-        }
-      );
-
-      // Generate and upload HTML
-      const htmlTemplateGenerator = (await import("../../api/services/htmlTemplateGenerator")).default;
-      const htmlResult = htmlTemplateGenerator.generateEmailHTML(duplicatedData);
-      
-      const htmlBlobName = `work_${workId}/templates/${Date.now()}_${Math.random().toString(36).substr(2, 9)}_email.html`;
-      const htmlData = await azureBlobService.uploadRawData(
-        htmlResult.html,
-        htmlBlobName,
-        {
-          folder: `work_${workId}/templates`,
-          container: "templates",
-          contentType: "text/html",
-        }
-      );
-
-      // Create new template in database
-      const newTemplate = await templateService.createTemplate({
-        name: duplicatedData.name,
-        dataUrl: jsonData.secure_url,
-        htmlUrl: htmlData.secure_url,
-        dataBlobName: jsonData.blob_name,
-        htmlBlobName: htmlData.blob_name,
-        previewImageUrl: template.previewImageUrl,
-      });
-
-      return newTemplate.data || newTemplate;
+      const response = await templateService.createTemplate(newTemplate);
+      return response.data.data;
     } catch (error) {
-      return rejectWithValue(error);
+      return rejectWithValue(
+        error.response?.data?.message ||
+          "Failed to create template from gallery"
+      );
     }
   }
 );
-
-/**
- * Load template data from Azure
- */
-export const loadTemplateData = createAsyncThunk(
-  "template/loadTemplateData",
-  async (dataUrl, { rejectWithValue }) => {
-    try {
-      const data = await azureBlobService.fetchAzureData(dataUrl);
-      return data;
-    } catch (error) {
-      return rejectWithValue(error);
-    }
-  }
-);
-
-// ============================================================================
-// INITIAL STATE
-// ============================================================================
-
-const initialState = {
-  // Templates list
-  templates: [],
-  templatesLoading: false,
-  templatesError: null,
-
-  // Current template
-  currentTemplate: null,
-  currentTemplateLoading: false,
-  currentTemplateError: null,
-
-  // Template data
-  templateData: null,
-  templateDataLoading: false,
-  templateDataError: null,
-
-  // Operations
-  creating: false,
-  createError: null,
-  updating: false,
-  updateError: null,
-  deleting: false,
-  deleteError: null,
-  duplicating: false,
-  duplicateError: null,
-
-  // Search
-  searchQuery: "",
-  filteredTemplates: [],
-};
 
 // ============================================================================
 // SLICE
 // ============================================================================
 
+const initialState = {
+  // Private user templates
+  templates: [],
+  templatesLoading: false,
+  templatesError: null,
+
+  // Public gallery templates
+  publicTemplates: [],
+  publicTemplatesLoading: false,
+  publicTemplatesError: null,
+
+  // Search
+  searchQuery: "",
+  publicSearchQuery: "",
+
+  // Selected category for gallery
+  selectedCategory: "all",
+};
+
 const templateSlice = createSlice({
   name: "template",
   initialState,
   reducers: {
-    // Search
     setSearchQuery: (state, action) => {
       state.searchQuery = action.payload;
-
-      // Filter templates
-      if (action.payload.trim() === "") {
-        state.filteredTemplates = state.templates;
-      } else {
-        const query = action.payload.toLowerCase();
-        state.filteredTemplates = state.templates.filter((template) => {
-          const name = template.name.toLowerCase();
-          const date = template.updatedAt
-            ? new Date(template.updatedAt).toLocaleDateString().toLowerCase()
-            : "";
-          return name.includes(query) || date.includes(query);
-        });
-      }
     },
-
-    // Current template
-    setCurrentTemplate: (state, action) => {
-      state.currentTemplate = action.payload;
+    setPublicSearchQuery: (state, action) => {
+      state.publicSearchQuery = action.payload;
     },
-
-    clearCurrentTemplate: (state) => {
-      state.currentTemplate = null;
-      state.currentTemplateError = null;
+    setSelectedCategory: (state, action) => {
+      state.selectedCategory = action.payload;
     },
-
-    // Template data
-    clearTemplateData: (state) => {
-      state.templateData = null;
-      state.templateDataError = null;
-    },
-
-    // Errors
-    clearErrors: (state) => {
+    clearTemplates: (state) => {
+      state.templates = [];
       state.templatesError = null;
-      state.currentTemplateError = null;
-      state.templateDataError = null;
-      state.createError = null;
-      state.updateError = null;
-      state.deleteError = null;
-      state.duplicateError = null;
     },
-
-    clearError: (state, action) => {
-      const errorType = action.payload;
-      state[errorType] = null;
+    clearPublicTemplates: (state) => {
+      state.publicTemplates = [];
+      state.publicTemplatesError = null;
     },
   },
-
   extraReducers: (builder) => {
+    // ========================================================================
+    // FETCH PRIVATE TEMPLATES
+    // ========================================================================
     builder
-      // ========================================================================
-      // FETCH TEMPLATES
-      // ========================================================================
       .addCase(fetchTemplates.pending, (state) => {
         state.templatesLoading = true;
         state.templatesError = null;
@@ -235,96 +151,137 @@ const templateSlice = createSlice({
       .addCase(fetchTemplates.fulfilled, (state, action) => {
         state.templatesLoading = false;
         state.templates = action.payload;
-        state.filteredTemplates = action.payload;
       })
       .addCase(fetchTemplates.rejected, (state, action) => {
         state.templatesLoading = false;
-        state.templatesError =
-          action.payload?.message || "Failed to fetch templates";
-      })
+        state.templatesError = action.payload;
+      });
 
-      // ========================================================================
-      // FETCH TEMPLATE BY ID
-      // ========================================================================
-      .addCase(fetchTemplateById.pending, (state) => {
-        state.currentTemplateLoading = true;
-        state.currentTemplateError = null;
+    // ========================================================================
+    // FETCH PUBLIC TEMPLATES
+    // ========================================================================
+    builder
+      .addCase(fetchPublicTemplates.pending, (state) => {
+        state.publicTemplatesLoading = true;
+        state.publicTemplatesError = null;
       })
-      .addCase(fetchTemplateById.fulfilled, (state, action) => {
-        state.currentTemplateLoading = false;
-        state.currentTemplate = action.payload;
+      .addCase(fetchPublicTemplates.fulfilled, (state, action) => {
+        state.publicTemplatesLoading = false;
+        state.publicTemplates = action.payload;
       })
-      .addCase(fetchTemplateById.rejected, (state, action) => {
-        state.currentTemplateLoading = false;
-        state.currentTemplateError =
-          action.payload?.message || "Failed to fetch template";
-      })
+      .addCase(fetchPublicTemplates.rejected, (state, action) => {
+        state.publicTemplatesLoading = false;
+        state.publicTemplatesError = action.payload;
+      });
 
-      // ========================================================================
-      // DELETE TEMPLATE
-      // ========================================================================
-      .addCase(deleteTemplate.pending, (state) => {
-        state.deleting = true;
-        state.deleteError = null;
-      })
+    // ========================================================================
+    // DELETE TEMPLATE
+    // ========================================================================
+    builder
       .addCase(deleteTemplate.fulfilled, (state, action) => {
-        state.deleting = false;
-
-        // Remove from templates list
+        // Remove deleted template from state
         state.templates = state.templates.filter(
           (t) => t._id !== action.payload
         );
-        state.filteredTemplates = state.filteredTemplates.filter(
-          (t) => t._id !== action.payload
-        );
-
-        // Clear current template if it's the same
-        if (state.currentTemplate?._id === action.payload) {
-          state.currentTemplate = null;
-        }
       })
       .addCase(deleteTemplate.rejected, (state, action) => {
-        state.deleting = false;
-        state.deleteError =
-          action.payload?.message || "Failed to delete template";
-      })
+        state.templatesError = action.payload;
+      });
 
-      // ========================================================================
-      // DUPLICATE TEMPLATE
-      // ========================================================================
-      .addCase(duplicateTemplate.pending, (state) => {
-        state.duplicating = true;
-        state.duplicateError = null;
-      })
+    // ========================================================================
+    // DUPLICATE TEMPLATE
+    // ========================================================================
+    builder
       .addCase(duplicateTemplate.fulfilled, (state, action) => {
-        state.duplicating = false;
-        state.templates.unshift(action.payload);
-        state.filteredTemplates.unshift(action.payload);
+        // Add new template to beginning of array
+        state.templates = [action.payload, ...state.templates];
       })
       .addCase(duplicateTemplate.rejected, (state, action) => {
-        state.duplicating = false;
-        state.duplicateError =
-          action.payload?.message || "Failed to duplicate template";
-      })
+        state.templatesError = action.payload;
+      });
 
-      // ========================================================================
-      // LOAD TEMPLATE DATA
-      // ========================================================================
-      .addCase(loadTemplateData.pending, (state) => {
-        state.templateDataLoading = true;
-        state.templateDataError = null;
+    // ========================================================================
+    // CREATE FROM GALLERY TEMPLATE
+    // ========================================================================
+    builder
+      .addCase(createFromGalleryTemplate.fulfilled, (state, action) => {
+        // Add new template to user's private templates
+        state.templates = [action.payload, ...state.templates];
       })
-      .addCase(loadTemplateData.fulfilled, (state, action) => {
-        state.templateDataLoading = false;
-        state.templateData = action.payload;
-      })
-      .addCase(loadTemplateData.rejected, (state, action) => {
-        state.templateDataLoading = false;
-        state.templateDataError =
-          action.payload?.message || "Failed to load template data";
+      .addCase(createFromGalleryTemplate.rejected, (state, action) => {
+        state.templatesError = action.payload;
       });
   },
 });
+
+// ============================================================================
+// SELECTORS
+// ============================================================================
+
+// Private templates selectors
+export const selectTemplates = (state) => state.template.templates;
+export const selectTemplatesLoading = (state) =>
+  state.template.templatesLoading;
+export const selectSearchQuery = (state) => state.template.searchQuery;
+
+// Public templates selectors
+export const selectPublicTemplates = (state) => state.template.publicTemplates;
+export const selectPublicTemplatesLoading = (state) =>
+  state.template.publicTemplatesLoading;
+export const selectPublicSearchQuery = (state) =>
+  state.template.publicSearchQuery;
+export const selectSelectedCategory = (state) =>
+  state.template.selectedCategory;
+
+// Filtered private templates based on search query
+export const selectFilteredTemplates = (state) => {
+  const { templates, searchQuery } = state.template;
+  const term = searchQuery.trim().toLowerCase();
+
+  if (!term) return templates;
+
+  return templates.filter((template) => {
+    const name = (template.name || "").toLowerCase();
+    const date = template.updatedAt
+      ? new Date(template.updatedAt).toLocaleDateString().toLowerCase()
+      : "";
+    return name.includes(term) || date.includes(term);
+  });
+};
+
+// Filtered public templates based on search and category
+export const selectFilteredPublicTemplates = (state) => {
+  const { publicTemplates, publicSearchQuery, selectedCategory } =
+    state.template;
+  const term = publicSearchQuery.trim().toLowerCase();
+
+  let filtered = publicTemplates;
+
+  // Filter by category
+  if (selectedCategory !== "all") {
+    filtered = filtered.filter(
+      (template) =>
+        template.category === selectedCategory ||
+        (!template.category && selectedCategory === "other")
+    );
+  }
+
+  // Filter by search query
+  if (term) {
+    filtered = filtered.filter((template) => {
+      const name = (template.name || "").toLowerCase();
+      const description = (template.description || "").toLowerCase();
+      const category = (template.category || "").toLowerCase();
+      return (
+        name.includes(term) ||
+        description.includes(term) ||
+        category.includes(term)
+      );
+    });
+  }
+
+  return filtered;
+};
 
 // ============================================================================
 // EXPORTS
@@ -332,21 +289,10 @@ const templateSlice = createSlice({
 
 export const {
   setSearchQuery,
-  setCurrentTemplate,
-  clearCurrentTemplate,
-  clearTemplateData,
-  clearErrors,
-  clearError,
+  setPublicSearchQuery,
+  setSelectedCategory,
+  clearTemplates,
+  clearPublicTemplates,
 } = templateSlice.actions;
-
-// Selectors
-export const selectTemplates = (state) => state.template.templates;
-export const selectFilteredTemplates = (state) =>
-  state.template.filteredTemplates;
-export const selectTemplatesLoading = (state) =>
-  state.template.templatesLoading;
-export const selectCurrentTemplate = (state) => state.template.currentTemplate;
-export const selectTemplateData = (state) => state.template.templateData;
-export const selectSearchQuery = (state) => state.template.searchQuery;
 
 export default templateSlice.reducer;

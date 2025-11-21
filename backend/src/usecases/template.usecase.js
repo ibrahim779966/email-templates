@@ -1,68 +1,58 @@
-// ============================================
-// FILE: usecases/template.usecase.js
-// PURPOSE: Application logic layer - orchestrates business flows
-// RESPONSIBILITIES: Coordinate between multiple services, handle complex workflows
-// NOTE: Currently simple pass-through, but can be extended with complex business logic
-// ============================================
-
-const templateService = require('../services/template.service');
+const templateService = require("../services/template.service");
+const { generateEmailHTML } = require("../utils/htmlGenerator");
 
 class TemplateUseCase {
+  async createTemplate(createDto) {
+    // Create template first
+    const template = await templateService.createTemplate(createDto);
 
-  /**
-   * Use case: Create a new template
-   * @param {Object} createTemplateDto - DTO containing template data
-   * @returns {Promise<Object>} - Created template
-   * NOTE: Can add multi-service orchestration, transaction handling, etc.
-   */
-  async createTemplate(createTemplateDto) {
-    // Additional business validation or multi-service orchestration can go here
-    // Example: Check user permissions, validate quotas, send notifications, etc.
-    const template = await templateService.createTemplate(createTemplateDto);
-    return template;
+    // ✅ Generate email HTML automatically from elements
+    const emailHtml = generateEmailHTML(template);
+
+    // Update template with generated HTML
+    await templateService.updateTemplate(template._id, { emailHtml });
+
+    return {
+      ...template.toObject(),
+      emailHtml,
+    };
   }
 
-  /**
-   * Use case: Get template by ID
-   * @param {String} templateId - Template ID
-   * @returns {Promise<Object>} - Template document
-   */
+  async getTemplatesByWorkId(workId) {
+    return await templateService.getTemplatesByWorkId(workId);
+  }
+  async getPublicTemplates() {
+    return await templateService.getPublicTemplates();
+  }
+
   async getTemplateById(templateId) {
     return await templateService.getTemplateById(templateId);
   }
 
-  /**
-   * Use case: Get all templates for a work ID
-   * @param {String} workId - Work ID
-   * @returns {Promise<Array>} - Array of templates
-   */
-  async getTemplatesByWorkId(workId) {
-    return await templateService.getTemplatesByWorkId(workId);
+  async updateTemplate(templateId, updates) {
+    // Update template
+    const updatedTemplate = await templateService.updateTemplate(
+      templateId,
+      updates
+    );
+
+    // ✅ Regenerate HTML if elements or settings changed
+    if (updates.elements || updates.globalSettings) {
+      const emailHtml = generateEmailHTML(updatedTemplate);
+      await templateService.updateTemplate(templateId, { emailHtml });
+      updatedTemplate.emailHtml = emailHtml;
+    }
+
+    return updatedTemplate;
   }
 
-  /**
-   * Use case: Update a template
-   * @param {String} templateId - Template ID
-   * @param {Object} updateFields - Fields to update
-   * @returns {Promise<Object>} - Updated template
-   * NOTE: Can add additional business rules like audit logging, validation, etc.
-   */
-  async updateTemplate(templateId, updateFields) {
-    // Can add additional business rules or validations here
-    // Example: Check if user has permission to update, log changes, etc.
-    return await templateService.updateTemplate(templateId, updateFields);
-  }
-
-  /**
-   * Use case: Delete a template
-   * @param {String} templateId - Template ID
-   * @returns {Promise<Object>} - Success message
-   * NOTE: Can add cleanup tasks like deleting related resources from Cloudinary
-   */
   async deleteTemplate(templateId) {
-    // Can add cleanup operations here
-    // Example: Delete associated files from cloud storage, notify other services, etc.
     return await templateService.deleteTemplate(templateId);
+  }
+
+  async generateEmailHtml(templateId) {
+    const template = await templateService.getTemplateById(templateId);
+    return generateEmailHTML(template);
   }
 }
 

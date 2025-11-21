@@ -9,11 +9,20 @@
  * Used to structure incoming data from API requests
  */
 class CreateTemplateDto {
-  constructor(name, cloudinaryUrl, workId, previewImageUrl) {
+  constructor(
+    name,
+    workId,
+    elements = [],
+    globalSettings = {},
+    previewImageUrl = "",
+    category = "Other" // default value
+  ) {
     this.name = name;
-    this.cloudinaryUrl = cloudinaryUrl;
-    this.workId = workId; // User or project identifier
+    this.workId = workId;
+    this.elements = elements;
+    this.globalSettings = globalSettings;
     this.previewImageUrl = previewImageUrl;
+    this.category = category; // added here
   }
 }
 
@@ -22,10 +31,13 @@ class CreateTemplateDto {
  * Used to structure incoming data for update requests
  */
 class UpdateTemplateDto {
-  constructor(name, cloudinaryUrl, previewImageUrl) {
-    this.name = name;
-    this.cloudinaryUrl = cloudinaryUrl;
-    this.previewImageUrl = previewImageUrl;
+  constructor(updates) {
+    if (updates.name) this.name = updates.name;
+    if (updates.elements) this.elements = updates.elements;
+    if (updates.globalSettings) this.globalSettings = updates.globalSettings;
+    if (updates.previewImageUrl) this.previewImageUrl = updates.previewImageUrl;
+    if (updates.emailHtml) this.emailHtml = updates.emailHtml;
+    if (updates.category) this.category = updates.category; // added here
   }
 }
 
