@@ -31,15 +31,12 @@ const apiUrls = {
 
   // Azure Blob Storage endpoints (REPLACES cloudinary config)
   azure: {
-    // Backend endpoints for Azure operations
-    generateSASToken: "/azure/generate-sas-token",
-    deleteBlob: "/azure/delete-blob",
-    generatePublicUrl: "/azure/generate-public-url",
-    
-    // Azure Storage configuration (from environment variables)
-    account_name: import.meta.env.REACT_APP_AZURE_STORAGE_ACCOUNT || "",
-    container_name: import.meta.env.REACT_APP_AZURE_CONTAINER_NAME || "templates",
-  },
+  uploadImage: "/azure/upload-image",       //  NEW
+  uploadData: "/azure/upload-data",         //  NEW
+  fetchData: "/azure/fetch-data",           //  NEW
+  deleteBlob: "/azure/delete-blob",         // Keep this
+  listBlobs: "/azure/list-blobs",           //  NEW
+},
 
   // User endpoints
   user: {

@@ -1283,77 +1283,82 @@ if (rotationValue && rotationValue !== 'none') {
         pushLinkRect(buttonLink.href, leftPx, topPx, widthPx, heightPx);
         break;
 
-     case "image": {
-  // Compute rotation string (same logic as above to be safe)
-  const rotationFromStyles =
-    styles?.rotation
-      ? (String(styles.rotation).includes('deg') ? styles.rotation : styles.rotation + 'deg')
-      : null;
-
-  let rotationValue = 'none';
-  if (rotationFromStyles) {
-    rotationValue = `rotate(${rotationFromStyles})`;
-  } else if (styles?.transform && /rotate\(/i.test(styles.transform)) {
-    rotationValue = styles.transform.match(/rotate\([^)]+\)/i)[0];
-  } else if (styles?.rotate) {
-    rotationValue = `rotate(${String(styles.rotate).includes('deg') ? styles.rotate : styles.rotate + 'deg'})`;
-  }
-
-  // Outer wrapper: this element must carry the border AND the rotation so dom-to-image rasterizes both together
-  div.style.cssText = `
-    position: absolute;
-    left: ${styles.left || "0px"};
-    top: ${styles.top || "0px"};
-    width: ${styles.width || "auto"};
-    height: ${styles.height || "auto"};
-    margin: 0;
-    padding: 0;
-    background-color: ${styles.backgroundColor || "transparent"};
-    border: ${getBorderStyles(styles)};
-    border-radius: ${composeCornerRadius(styles, "0px")};
-    overflow: hidden;
-    box-sizing: border-box;
-    transform-origin: center center;
-    will-change: transform;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  `;
-
-  // If a rotation exists, set it explicitly (re-apply in case stripLayoutTransforms cleared it)
-  if (rotationValue && rotationValue !== 'none') {
-    div.style.transform = rotationValue;
-  }
-
-  // Create single inner container (so border + image are in same rendering layer)
-  const inner = document.createElement('div');
-  inner.style.cssText = `
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    display: block;
-    box-sizing: border-box;
-    border-radius: inherit;
-    background: transparent;
-  `;
-
+case "image": {
+  const imgContainer = document.createElement("div");
   const img = document.createElement("img");
+
+  // Extract rotation and scale
+  const rotation = extractRotation(styles.transform || styles.rotate);
+  const scale = extractScale(styles.transform || styles.scale);
+
+  // Base image setup
   img.src = element.content || "";
-  img.alt = "Exported Image";
+  img.alt = "Image Element";
   img.style.cssText = `
     width: 100%;
     height: 100%;
-    object-fit: ${styles.objectFit || "cover"};
+    object-fit: ${styles.objectFit || "contain"};
     display: block;
-    border-radius: inherit;
-    transform: none; /* ensure no double rotation */
-    backface-visibility: hidden;
+    border-radius: ${composeCornerRadius(styles, "0px")};
   `;
 
-  inner.appendChild(img);
-  div.appendChild(inner);
+  // Container handles border + rotation (like in your working file)
+  imgContainer.style.cssText = `
+    position: relative;
+    display: inline-block;
+    width: ${styles.width || "300px"};
+    height: ${styles.height || "200px"};
+    box-sizing: border-box;
+    overflow: visible;
+    border: ${getBorderStyles(styles)};
+    border-radius: ${composeCornerRadius(styles, "0px")};
+    box-shadow: ${styles.boxShadow || "none"};
+    background-color: ${styles.backgroundColor || "transparent"};
+    transform: ${styles.transform || `rotate(${rotation}deg) scale(${scale})`};
+    transform-origin: ${styles.transformOrigin || "center center"};
+    opacity: ${styles.opacity || "1"};
+  `;
+
+  imgContainer.appendChild(img);
+
+  // If image has a link
+  if (element.link && element.link.trim() !== "") {
+    const link = document.createElement("a");
+    link.href = element.link;
+    link.target = "_blank";
+    link.style.display = "inline-block";
+    link.style.width = "100%";
+    link.style.height = "100%";
+    link.appendChild(imgContainer);
+    div.appendChild(link);
+  } else {
+    div.appendChild(imgContainer);
+  }
+
+  // Keep transforms during export (do not strip rotation)
+// ✅ Preserve image rotation for export preview
+// Don't strip transforms for rotated or scaled images
+if (!styles.transform && !styles.rotate) {
+  stripLayoutTransforms(imgContainer);
+}
+
+
+  // Optional visual effects
+  if (styles.filter && styles.filter !== "none") {
+    imgContainer.style.filter = styles.filter;
+  }
+
+  // Background image/pattern support
+  if (styles.backgroundImage && styles.backgroundImage !== "none") {
+    imgContainer.style.backgroundImage = styles.backgroundImage;
+    imgContainer.style.backgroundSize = styles.backgroundSize || "cover";
+    imgContainer.style.backgroundPosition =
+      styles.backgroundPosition || "center";
+  }
+
   break;
 }
+
   
       case "divider":
         div.style.backgroundColor = styles.backgroundColor || "#d1d5db";
